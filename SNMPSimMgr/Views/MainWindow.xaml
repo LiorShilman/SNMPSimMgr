@@ -1,0 +1,101 @@
+<Window x:Class="SNMPSimMgr.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:SNMPSimMgr.Views"
+        Title="SNMP Simulator Manager"
+        Width="1150" Height="780"
+        Background="{StaticResource BgDarkBrush}"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Header Bar -->
+        <Border Grid.Row="0" Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="16,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Logo icon -->
+                    <Border Background="{StaticResource AccentBlueBrush}" CornerRadius="6"
+                            Width="32" Height="32" Margin="0,0,12,0">
+                        <TextBlock Text="S" FontSize="16" FontWeight="Bold"
+                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="SNMP SimManager" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="v1.0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Margin="8,2,0,0"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Demo Mode badge -->
+                    <Border Background="#3D2E00" CornerRadius="4" Padding="10,5" Margin="4,0"
+                            BorderBrush="#FFAB00" BorderThickness="1"
+                            Visibility="{Binding IsDemoMode, Converter={StaticResource BoolToVisConverter}}">
+                        <TextBlock Text="DEMO MODE" FontWeight="Bold" FontSize="11"
+                                   Foreground="{StaticResource AccentOrangeBrush}"/>
+                    </Border>
+                    <Button Content="Load Demo Data" Command="{Binding LoadDemoDataCommand}"
+                            Style="{StaticResource AccentButton}"/>
+                    <Button Content="Start All Simulators" Command="{Binding StartDemoSimulationCommand}"
+                            Style="{StaticResource SuccessButton}"/>
+                    <Button Content="▶ Start &amp; Inject All" Command="{Binding StartAllAndInjectCommand}"
+                            Style="{StaticResource SuccessButton}" ToolTip="Start all simulators and inject recorded sessions"/>
+
+                    <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,4"/>
+
+                    <Button Content="&#x2753; מדריך" Command="{Binding ShowUserGuideCommand}"
+                            ToolTip="מדריך למשתמש" FontSize="12"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <TabControl Grid.Row="1" Margin="12,8,12,4">
+            <TabItem Header="DEVICES">
+                <views:DeviceListView DataContext="{Binding DeviceList}"/>
+            </TabItem>
+            <TabItem Header="RECORDER">
+                <views:RecorderView DataContext="{Binding Recorder}"/>
+            </TabItem>
+            <TabItem Header="SIMULATOR">
+                <views:SimulatorView DataContext="{Binding Simulator}"/>
+            </TabItem>
+            <TabItem Header="MIB BROWSER">
+                <views:MibBrowserView DataContext="{Binding MibBrowser}"/>
+            </TabItem>
+            <TabItem Header="SCENARIOS">
+                <views:ScenarioView DataContext="{Binding Scenario}"/>
+            </TabItem>
+            <TabItem Header="MONITOR">
+                <views:NetworkMonitorView DataContext="{Binding Monitor}"/>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#161A26" Padding="14,6"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDemoMode}" Value="False">
+                                    <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,340 @@
+<UserControl x:Class="SNMPSimMgr.Views.NetworkMonitorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Style="{StaticResource SectionBorder}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Monitor icon -->
+                    <Border Background="#1A2A3A" CornerRadius="8" Width="40" Height="40" Margin="0,0,14,0">
+                        <TextBlock Text="&#x25C9;" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{StaticResource AccentGreenBrush}"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Network Monitor" FontSize="16" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="Real-time SNMP traffic visualization"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <!-- Client count pill -->
+                    <Border Background="{StaticResource AccentBlueBrush}" CornerRadius="10"
+                            Padding="10,5" Margin="0,0,8,0">
+                        <TextBlock FontSize="11" FontWeight="Bold" Foreground="White">
+                            <Run Text="{Binding ClientCount, Mode=OneWay}"/>
+                            <Run Text=" clients"/>
+                        </TextBlock>
+                    </Border>
+                    <!-- Total requests pill -->
+                    <Border Background="#2A3A2A" CornerRadius="10" Padding="10,5" Margin="0,0,8,0"
+                            BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1">
+                        <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentGreenBrush}">
+                            <Run Text="{Binding TotalRequests, Mode=OneWay}"/>
+                            <Run Text=" requests"/>
+                        </TextBlock>
+                    </Border>
+                    <!-- Clear button -->
+                    <Button Content="Clear" Command="{Binding ClearTrafficCommand}"
+                            Padding="10,5" FontSize="11"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Network Topology Diagram -->
+        <Border Grid.Row="1" Style="{StaticResource SectionBorder}" MinHeight="160">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- CLIENTS / SOURCES (Left) -->
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top" Text="SOURCES" FontWeight="SemiBold" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"
+                               HorizontalAlignment="Center"/>
+                    <ItemsControl ItemsSource="{Binding Connections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="6" Padding="12,8" Margin="4,3"
+                                        BorderThickness="2,2,2,2">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#1E2233"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                            <Style.Triggers>
+                                                <!-- Active client = green -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsActive}" Value="True"/>
+                                                        <Condition Binding="{Binding IsInjection}" Value="False"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                                    <Setter Property="Background" Value="#1A2A1A"/>
+                                                </MultiDataTrigger>
+                                                <!-- Active injection = orange -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsActive}" Value="True"/>
+                                                        <Condition Binding="{Binding IsInjection}" Value="True"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentOrangeBrush}"/>
+                                                    <Setter Property="Background" Value="#2A2A1A"/>
+                                                </MultiDataTrigger>
+                                                <!-- Inactive injection = orange border dim -->
+                                                <DataTrigger Binding="{Binding IsInjection}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#664D00"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Activity dot -->
+                                        <Ellipse Grid.Column="0" Grid.RowSpan="2" Width="10" Height="10"
+                                                 Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <!-- Client active = green -->
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsActive}" Value="True"/>
+                                                                <Condition Binding="{Binding IsInjection}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+                                                        </MultiDataTrigger>
+                                                        <!-- Injection active = orange -->
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsActive}" Value="True"/>
+                                                                <Condition Binding="{Binding IsInjection}" Value="True"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Fill" Value="{StaticResource AccentOrangeBrush}"/>
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+
+                                        <!-- IP / Label -->
+                                        <TextBlock Grid.Column="1" Grid.Row="0"
+                                                   Text="{Binding IpAddress}"
+                                                   FontFamily="Cascadia Code,Consolas,Courier New"
+                                                   FontSize="13" FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsInjection}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal" Margin="0,2,0,0">
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11">
+                                                <Run Text="{Binding LastOperation, Mode=OneWay}"/>
+                                                <Run Text=" | "/>
+                                                <Run Text="{Binding RequestCount, Mode=OneWay}"/>
+                                                <Run Text=" frames | "/>
+                                                <Run Text="{Binding LastSeen, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+
+                <!-- TRAFFIC FLOW (Center) -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="&#x25B6; INJECT &#x25B6;" HorizontalAlignment="Center"
+                               FontSize="10" FontWeight="Bold" Margin="0,6"
+                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                    <Border Height="2" Background="{StaticResource AccentOrangeBrush}" Margin="0,2"
+                            CornerRadius="1" Opacity="0.4"/>
+                    <Border Height="1" Margin="0,8" Opacity="0.2"
+                            Background="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="&#x25B6; REQUEST &#x25B6;" HorizontalAlignment="Center"
+                               FontSize="10" FontWeight="Bold" Margin="0,2"
+                               Foreground="{StaticResource AccentBlueBrush}"/>
+                    <Border Height="2" Background="{StaticResource AccentBlueBrush}" Margin="0,2"
+                            CornerRadius="1" Opacity="0.4"/>
+                    <Border Height="2" Background="{StaticResource AccentGreenBrush}" Margin="0,2"
+                            CornerRadius="1" Opacity="0.4"/>
+                    <TextBlock Text="&#x25C0; RESPONSE &#x25C0;" HorizontalAlignment="Center"
+                               FontSize="10" FontWeight="Bold" Margin="0,2"
+                               Foreground="{StaticResource AccentGreenBrush}"/>
+                </StackPanel>
+
+                <!-- SIMULATORS (Right) -->
+                <DockPanel Grid.Column="2">
+                    <TextBlock DockPanel.Dock="Top" Text="SIMULATORS" FontWeight="SemiBold" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"
+                               HorizontalAlignment="Center"/>
+                    <ItemsControl ItemsSource="{Binding ActiveSimulators}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#1E2233" CornerRadius="6" Padding="12,8" Margin="4,3"
+                                        BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Server icon -->
+                                        <Border Grid.Column="0" Grid.RowSpan="2"
+                                                Background="{StaticResource AccentBlueBrush}"
+                                                CornerRadius="4" Width="28" Height="28"
+                                                Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <TextBlock Text="S" FontSize="14" FontWeight="Bold"
+                                                       Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Device name + details -->
+                                        <TextBlock Grid.Column="1" Grid.Row="0"
+                                                   Text="{Binding DeviceName}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal" Margin="0,2,0,0">
+                                            <TextBlock FontFamily="Cascadia Code,Consolas,Courier New"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="11">
+                                                <Run Text="{Binding ListenIp, Mode=OneWay}"/>
+                                                <Run Text=":"/>
+                                                <Run Text="{Binding Port, Mode=OneWay}"/>
+                                                <Run Text=" | "/>
+                                                <Run Text="{Binding OidCount, Mode=OneWay}"/>
+                                                <Run Text=" OIDs"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+
+                <!-- Empty state message (when no simulators) -->
+                <TextBlock Grid.Column="0" Grid.ColumnSpan="3"
+                           Text="Start a simulator to see network traffic"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"
+                           Opacity="0.6">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveSimulators.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Border>
+
+        <!-- Address Mapping Table -->
+        <Border Grid.Row="2" Style="{StaticResource SectionBorder}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="&#x1F517;" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="ADDRESS MAPPING" FontWeight="SemiBold" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text=" — Configure these addresses in your management system"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Opacity="0.6"/>
+                </StackPanel>
+                <DataGrid ItemsSource="{Binding ActiveSimulators}" AutoGenerateColumns="False"
+                          IsReadOnly="True" HeadersVisibility="Column"
+                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
+                          BorderThickness="0" CanUserResizeRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="DEVICE" Binding="{Binding DeviceName}" Width="180"/>
+                        <DataGridTextColumn Header="ORIGINAL ADDRESS" Width="200">
+                            <DataGridTextColumn.Binding>
+                                <MultiBinding StringFormat="{}{0}:{1}">
+                                    <Binding Path="OriginalIp"/>
+                                    <Binding Path="OriginalPort"/>
+                                </MultiBinding>
+                            </DataGridTextColumn.Binding>
+                        </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="" Width="50">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="→" FontSize="14" FontWeight="Bold"
+                                               Foreground="{StaticResource AccentGreenBrush}"
+                                               HorizontalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="SIMULATOR ADDRESS" Width="200">
+                            <DataGridTextColumn.Binding>
+                                <MultiBinding StringFormat="{}{0}:{1}">
+                                    <Binding Path="ListenIp"/>
+                                    <Binding Path="Port"/>
+                                </MultiBinding>
+                            </DataGridTextColumn.Binding>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="OIDs" Binding="{Binding OidCount}" Width="60"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <!-- Traffic Log Table -->
+        <Border Grid.Row="3" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" Margin="0,0,0,4">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="14,10,14,6">
+                    <TextBlock Text="Traffic Log" FontWeight="SemiBold" FontSize="13"/>
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}"
+                             Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <DataGrid ItemsSource="{Binding TrafficEntries}" AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
+                          BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="70"/>
+                        <DataGridTextColumn Header="SOURCE" Binding="{Binding SourceIp}" Width="130"/>
+                        <DataGridTextColumn Header="DEVICE" Binding="{Binding DeviceName}" Width="130"/>
+                        <DataGridTextColumn Header="OP" Binding="{Binding Operation}" Width="80"/>
+                        <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="3*"/>
+                        <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="4*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

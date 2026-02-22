@@ -1,0 +1,456 @@
+<Window x:Class="SNMPSimMgr.Views.UserGuideWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="מדריך למשתמש — SNMP SimManager"
+        Width="750" Height="700"
+        Background="#1B1F2A"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="RightToLeft">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#232836" Padding="20,14"
+                BorderBrush="#3D4663" BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock Text="מדריך למשתמש" FontSize="22" FontWeight="Bold"
+                           Foreground="#E8EAED"/>
+                <TextBlock Text="SNMP SimManager v1.0" FontSize="13"
+                           Foreground="#8C95A6" FlowDirection="LeftToRight"
+                           HorizontalAlignment="Right"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="24,16">
+            <StackPanel>
+
+                <!-- Section 1: Overview -->
+                <TextBlock Text="סקירה כללית" FontSize="17" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,0,0,16">
+                    SNMP SimManager הוא כלי להקלטה וסימולציה של תקשורת SNMP.
+                    המערכת מאפשרת להקליט את כל ה-MIB Tree מחומרות אמיתיות,
+                    ואז לסמלץ אותן על המחשב שלך — כך שהתוכנה שלך ממשיכה לעבוד
+                    גם בלי חומרה פיזית.
+                </TextBlock>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section 2: Devices Tab -->
+                <TextBlock Text="לשונית DEVICES — ניהול מכשירים" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>הוספת מכשיר:</Bold> הזן שם, כתובת IP, פורט (161), גרסת SNMP (V2c/V3)
+                        ו-Community String. לחץ "Add Device".
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>SNMPv3:</Bold> אם נבחר V3, יש למלא גם Username, Auth Protocol (MD5/SHA),
+                        Auth Password, Privacy Protocol (DES/AES) ו-Privacy Password.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>מחיקה:</Bold> בחר מכשיר בטבלה ולחץ "Remove Selected".
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        Auto-Discovery (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>סריקת רשת:</Bold> הזן Subnet (למשל 192.168.1.0), טווח כתובות (1-254)
+                        ו-Community String. לחץ "Scan" — המערכת תסרוק את כל הכתובות ותמצא
+                        מכשירי SNMP אוטומטית. סמן את המכשירים שרוצים ולחץ "Add Selected Devices".
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        Export / Import (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Export:</Bold> מייצא את כל המכשירים + הקלטות Walk/Sessions כקובץ .snmpsim אחד.
+                        אידיאלי לשיתוף בין מחשבים, גיבוי, או העברת סביבה לעמית.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Import:</Bold> טוען קובץ .snmpsim ומוסיף את כל המכשירים + הנתונים למערכת.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section 3: Recorder Tab -->
+                <TextBlock Text="לשונית RECORDER — הקלטה וקליטת SNMP" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>SNMP GET:</Bold> הזן OID בשדה ולחץ GET לקבלת ערך בודד מהמכשיר.
+                        ניתן להזין מספר OIDs מופרדים בפסיק.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>SNMP SET:</Bold> הזן OID, ערך חדש וסוג נתון (Integer32, OctetString וכו'),
+                        ולחץ SET לשינוי ערך במכשיר.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Test Connection:</Bold> בדיקה מהירה — שולח GET ל-sysDescr (1.3.6.1.2.1.1.1.0).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>SNMP Walk:</Bold> סריקה מלאה של כל ה-MIB Tree של המכשיר.
+                        הנתונים נשמרים אוטומטית לקובץ JSON ומשמשים את הסימולטור.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Trap Listener:</Bold> מאזין לפורט UDP 162 לקליטת Traps מהמכשיר.
+                        לחץ "Save Traps" לשמירתם.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        הקלטת Session (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Record Session:</Bold> מבצע Walk חוזר כל X שניות (ברירת מחדל: 10).
+                        כל Walk שומר "Frame" עם חותמת זמן — כך נלכד בדיוק איך ערכי OID
+                        משתנים לאורך זמן (למשל: מוני תעבורה, CPU, סטטוס ממשקים).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Stop &amp; Save:</Bold> עוצר את ההקלטה ושומר את כל ה-Frames לקובץ session.json.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Interval:</Bold> ניתן לשנות את תדירות הדגימה (בשניות) לפני ההקלטה.
+                        ערך נמוך = דיוק גבוה יותר, אבל קובץ גדול יותר.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section 4: Simulator Tab -->
+                <TextBlock Text="לשונית SIMULATOR — סימולציה" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>הפעלת סימולטור:</Bold> בחר מכשיר בלשונית DEVICES, הגדר Listen IP
+                        (ברירת מחדל: 0.0.0.0 = כל הכתובות) ו-Port (ברירת מחדל: 10161)
+                        ולחץ "Start for Selected".
+                        הסימולטור יקשיב על הכתובת והפורט ויענה לבקשות GET/GETNEXT/GETBULK/SET.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Listen IP:</Bold> 0.0.0.0 מאזין על כל כתובות הרשת של המחשב.
+                        ניתן להגדיר כתובת ספציפית כדי להאזין רק על ממשק רשת מסוים.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>SNMP Query:</Bold> בחר סימולטור פעיל, הזן OID ולחץ:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • GET — קבלת ערך בודד
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • SET — שינוי ערך (הזן ערך וסוג נתון)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • WALK — סריקת כל ה-OIDs תחת הענף שנבחר
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Live Traffic:</Bold> מציג בזמן אמת את כל הבקשות שהגיעו לסימולטור.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Play Traps:</Bold> שליחת Traps שנקלטו אל Trap Target שהוגדר.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        הזרקת Session — Injection (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Inject Session:</Bold> טוען הקלטת Session ששמרת בטאב Recorder
+                        ומנגן אותה על הסימולטור הפעיל. ערכי ה-OID מתעדכנים דינמית
+                        לפי ה-Timeline המקורי — המכשיר הווירטואלי מתנהג בדיוק כמו האמיתי!
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>לולאה:</Bold> ההקלטה רצה בלולאה — כשנגמרת, חוזרת להתחלה.
+                        כך ניתן לבדוק תוכנות ניטור לאורך זמן.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Stop Inject:</Bold> עוצר את ה-Playback. הערכים נשארים על הערך האחרון שהוזרק.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,12,0,0">
+                        <Bold>Double-Click:</Bold> לחיצה כפולה על שורה ב-Live Traffic או בטבלת Query Results
+                        מעתיקה את ה-OID לשדה ומבצעת GET אוטומטית.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: MIB Browser -->
+                <TextBlock Text="לשונית MIB BROWSER — צפייה בעץ MIB" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>עץ MIB:</Bold> מציג את כל ה-OIDs של המכשיר הנבחר כעץ היררכי.
+                        כל ענף ניתן לפתיחה, ו-OIDs עם ערכים מוצגים בירוק.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>חיפוש:</Bold> הקלד OID, שם, או ערך בשדה החיפוש — העץ יסומן
+                        וטבלת התוצאות תסונן בהתאם.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>תצוגה כפולה:</Bold> מעבר בין Tree View ל-Flat View (טבלה שטוחה).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>שמות MIB:</Bold> OIDs מוכרים (system, interfaces, וכו') מוצגים עם שמות קריאים.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: Scenario Builder -->
+                <TextBlock Text="לשונית SCENARIOS — בניית תרחישים" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Scenario Builder:</Bold> בנה תרחישי תקלה וסימולציה ידנית.
+                        הגדר אירועים לאורך ציר זמן — כל אירוע משנה ערך OID בזמן מוגדר.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Presets:</Bold> תבניות מוכנות — "Interface Down/Up" ו-"CPU Spike"
+                        מוסיפות אירועים מוכנים מראש.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Play:</Bold> הפעל את התרחיש על כל הסימולטורים הפעילים.
+                        האירועים מופעלים לפי ציר הזמן שהוגדר. ניתן להפעיל בלולאה.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Save / Load:</Bold> שמור תרחישים כקבצי .scenario.json ושתף עם אחרים.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>דוגמה:</Bold> T+0s ממשק יורד → T+30s ממשק עולה → T+60s CPU קופץ ל-95%
+                        → T+120s CPU חוזר ל-15%. מערכת ניטור חיצונית תראה את השינויים בזמן אמת.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: Monitor Tab -->
+                <TextBlock Text="לשונית MONITOR — ניטור תעבורה" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Network Monitor:</Bold> מסך ויזואלי בזמן אמת המציג את התעבורה בין
+                        קליינטים/הזרקות לסימולטורים. מתעדכן אוטומטית עם כל בקשת SNMP.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>טופולוגיה:</Bold> צד שמאל מציג מקורות תעבורה (קליינטים בירוק,
+                        הזרקות בכתום). צד ימין מציג סימולטורים פעילים. במרכז — חיצי תעבורה.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Address Mapping:</Bold> טבלת מיפוי כתובות — מציגה לכל סימולטור
+                        את הכתובת המקורית של החומרה ואת כתובת הסימולטור.
+                        השתמש בטבלה הזו כדי לדעת מה להגדיר במערכת הניהול החיצונית.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Traffic Log:</Bold> טבלת לוג מפורטת עם זמן, מקור, מכשיר, פעולה, OID וערך.
+                        מוגבלת ל-500 שורות אחרונות.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Clear:</Bold> מנקה את כל הנתונים — תעבורה, קליינטים ומוני בקשות.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section 6: Demo Mode -->
+                <TextBlock Text="מצב הדגמה (Demo Mode)" FontSize="15" FontWeight="Bold"
+                           Foreground="#FFAB00" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Load Demo Data:</Bold> יוצר 3 מכשירי הדגמה עם נתוני SNMP Walk מוכנים:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • Demo-Switch-Floor2 — סוויץ' עם 26 פורטים (~170 OIDs)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Demo-Router-Main — ראוטר עם 4 ממשקים, BGP, טבלת ניתוב
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Demo-AP-Lobby — נקודת גישה WiFi עם 2.4/5GHz
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Start All Simulators:</Bold> מפעיל סימולטורים לכל המכשירים
+                        (פורטים 10161-10163). ניתן מיד לבצע GET/SET/WALK דרך הממשק.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        Start &amp; Inject All (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>▶ Start &amp; Inject All:</Bold> בלחיצה אחת — מפעיל סימולטור לכל מכשיר
+                        ומזריק אוטומטית את ה-Session הראשון הזמין. אידיאלי לתרחיש שבו רוצים
+                        להפעיל מספר מכשירים בבת אחת עם ניגון הקלטות.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section 6: Quick Start -->
+                <TextBlock Text="התחלה מהירה — Demo" FontSize="15" FontWeight="Bold"
+                           Foreground="#57D9A3" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">1.</Bold>  לחץ "Load Demo Data" לטעינת מכשירי הדגמה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">2.</Bold>  לחץ "Start All Simulators" להפעלת הסימולציה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">3.</Bold>  עבור ללשונית SIMULATOR ובחר סימולטור
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">4.</Bold>  הזן OID ולחץ GET — תקבל ערך מהסימולטור!
+                    </TextBlock>
+                </StackPanel>
+
+                <TextBlock Text="תהליך מלא — הקלטה + סימולציה דינמית" FontSize="15" FontWeight="Bold"
+                           Foreground="#57D9A3" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">1.</Bold>  הוסף מכשיר אמיתי בלשונית DEVICES
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">2.</Bold>  בטאב RECORDER — לחץ "Start SNMP Walk" להקלטת snapshot
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">3.</Bold>  לחץ "Record Session" — ההקלטה תתפוס שינויים לאורך זמן
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">4.</Bold>  המתן מספר דקות ולחץ "Stop &amp; Save"
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">5.</Bold>  בטאב SIMULATOR — הפעל סימולטור ולחץ "Inject Session"
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">6.</Bold>  המכשיר הווירטואלי כעת מתנהג בדיוק כמו האמיתי!
+                    </TextBlock>
+                </StackPanel>
+
+                <TextBlock Text="תרחיש מלא — החלפת מספר חומרות בסימולטורים" FontSize="15" FontWeight="Bold"
+                           Foreground="#57D9A3" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,0,0,8">
+                        מערכת ניהול מדברת עם 5 חומרות בכתובות שונות.
+                        אתה רוצה לנגן הקלטות במקומן:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">1.</Bold>  הוסף את כל 5 המכשירים בלשונית DEVICES (עם IPs אמיתיים)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">2.</Bold>  לכל מכשיר — בצע Walk + Record Session בטאב RECORDER
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">3.</Bold>  לחץ "▶ Start &amp; Inject All" — כל הסימולטורים עולים עם הזרקות
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">4.</Bold>  עבור ללשונית MONITOR — ראה טבלת Address Mapping
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">5.</Bold>  שנה במערכת הניהול את כתובות המכשירים לכתובות הסימולטורים
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">6.</Bold>  מערכת הניהול מקבלת תשובות כאילו מדברת עם חומרה אמיתית!
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#8C95A6" FontSize="12" LineHeight="20" Margin="0,8,0,0">
+                        טיפ: בטאב MONITOR הטבלה מראה בדיוק איזו כתובת מקורית מוחלפת באיזו
+                        כתובת סימולטור — אין צורך לזכור בעל פה.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: Common OIDs -->
+                <TextBlock Text="OIDs שימושיים" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <Grid Margin="16,0,0,16" FlowDirection="LeftToRight">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="260"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                        <RowDefinition/><RowDefinition/><RowDefinition/>
+                        <RowDefinition/><RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="1.3.6.1.2.1.1.1.0"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="sysDescr — תיאור המכשיר"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="1.3.6.1.2.1.1.3.0"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="sysUpTime — זמן פעילות"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="1.3.6.1.2.1.1.5.0"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="sysName — שם המכשיר"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="1.3.6.1.2.1.2.1.0"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="ifNumber — מספר ממשקים"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="1.3.6.1.2.1.2.2.1.2"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="ifDescr — תיאור ממשקים"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="1.3.6.1.2.1.2.2.1.8"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="ifOperStatus — סטטוס ממשק (1=up, 2=down)"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="1.3.6.1.2.1.2.2.1.10"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="ifInOctets — בתים נכנסים"
+                               Foreground="#CDD1D8" FontSize="12"/>
+
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="1.3.6.1.2.1.2.2.1.16"
+                               Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12"/>
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="ifOutOctets — בתים יוצאים"
+                               Foreground="#CDD1D8" FontSize="12"/>
+                </Grid>
+
+                <!-- Section 8: Data Storage -->
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+                <TextBlock Text="אחסון נתונים" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,8">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        כל הנתונים נשמרים בתיקיית Data/ בפורמט JSON:
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,6,0,0"
+                               FlowDirection="LeftToRight">
+                        Data/profiles.json          — רשימת מכשירים
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,2,0,0"
+                               FlowDirection="LeftToRight">
+                        Data/{DeviceName}/walk.json  — נתוני Walk
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,2,0,0"
+                               FlowDirection="LeftToRight">
+                        Data/{DeviceName}/traps.json   — Traps שנקלטו
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,2,0,0"
+                               FlowDirection="LeftToRight">
+                        Data/{DeviceName}/sessions/*.json — הקלטות Session (כל הקלטה בקובץ נפרד)
+                    </TextBlock>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="#232836" Padding="20,10"
+                BorderBrush="#3D4663" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <TextBlock Text="SNMP SimManager v1.0" Foreground="#8C95A6" FontSize="12"
+                           VerticalAlignment="Center" FlowDirection="LeftToRight"/>
+                <Button Content="סגור" DockPanel.Dock="Left" HorizontalAlignment="Left"
+                        Click="CloseButton_Click" MinWidth="80" Style="{StaticResource AccentButton}"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

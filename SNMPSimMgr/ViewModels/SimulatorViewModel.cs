@@ -1,0 +1,486 @@
+using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SNMPSimMgr.Models;
+using SNMPSimMgr.Services;
+
+namespace SNMPSimMgr.ViewModels;
+
+public partial class SimulatorViewModel : ObservableObject
+{
+    private readonly DeviceProfileStore _store;
+    private readonly TrapGeneratorService _trapGenerator;
+    private readonly DeviceListViewModel _deviceList;
+    private readonly SnmpRecorderService _recorder;
+    private readonly ConcurrentDictionary<string, SnmpSimulatorService> _simulators = new();
+
+    public event Action<string, string, string, string, string>? TrafficReceived; // deviceName, op, oid, val, sourceIp
+
+    public ObservableCollection<string> LogEntries { get; } = new();
+    public ObservableCollection<SimulatorDeviceStatus> ActiveSimulators { get; } = new();
+    public ObservableCollection<string> TrafficLog { get; } = new();
+    public ObservableCollection<QueryResultItem> QueryResults { get; } = new();
+    public ObservableCollection<string> SessionList { get; } = new();
+
+    [ObservableProperty] private string _simulatorListenIp = "0.0.0.0";
+    [ObservableProperty] private int _simulatorPort = 10161;
+    [ObservableProperty] private string _trapTargetIp = "127.0.0.1";
+    [ObservableProperty] private int _trapTargetPort = 162;
+    [ObservableProperty] private string _queryOid = "1.3.6.1.2.1.1.1.0";
+    [ObservableProperty] private string _setValue = "";
+    [ObservableProperty] private string _setValueType = "OctetString";
+    [ObservableProperty] private SimulatorDeviceStatus? _selectedSimulator;
+    [ObservableProperty] private bool _isQuerying;
+    [ObservableProperty] private bool _isInjecting;
+    [ObservableProperty] private string _injectionStatus = "";
+    [ObservableProperty] private string? _selectedSessionName;
+
+    public DeviceProfile? SelectedDevice => _deviceList.SelectedDevice;
+
+    public SimulatorViewModel(
+        DeviceProfileStore store,
+        TrapGeneratorService trapGenerator,
+        DeviceListViewModel deviceList,
+        SnmpRecorderService recorder)
+    {
+        _store = store;
+        _trapGenerator = trapGenerator;
+        _deviceList = deviceList;
+        _recorder = recorder;
+
+        _trapGenerator.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
+
+        _deviceList.PropertyChanged += async (_, e) =>
+        {
+            if (e.PropertyName == nameof(DeviceListViewModel.SelectedDevice))
+            {
+                OnPropertyChanged(nameof(SelectedDevice));
+                await RefreshSessionList();
+            }
+        };
+    }
+
+    public async Task RefreshSessionList()
+    {
+        SessionList.Clear();
+        var device = SelectedDevice;
+        if (device == null) return;
+
+        var names = await _store.ListSessionNamesAsync(device);
+        foreach (var name in names)
+            SessionList.Add(name);
+
+        if (SessionList.Count > 0)
+            SelectedSessionName = SessionList[0];
+    }
+
+    private DeviceProfile? BuildTempDevice()
+    {
+        if (SelectedSimulator == null) return null;
+        return new DeviceProfile
+        {
+            IpAddress = "127.0.0.1",
+            Port = SelectedSimulator.Port,
+            Version = SnmpVersionOption.V2c,
+            Community = "public"
+        };
+    }
+
+    [RelayCommand]
+    private async Task StartSimulator()
+    {
+        var device = SelectedDevice;
+        if (device == null) return;
+
+        if (_simulators.ContainsKey(device.Id))
+        {
+            LogEntries.Add($"Simulator for {device.Name} is already running.");
+            return;
+        }
+
+        var walkData = await _store.LoadWalkDataAsync(device);
+        if (walkData.Count == 0)
+        {
+            LogEntries.Add($"No walk data for {device.Name}. Record first!");
+            return;
+        }
+
+        var sim = new SnmpSimulatorService();
+        sim.LoadMibData(walkData, device.Name);
+
+        sim.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] [{device.Name}] {msg}"));
+
+        sim.RequestReceived += (op, oid, val, sourceIp) => App.Current.Dispatcher.Invoke(() =>
+        {
+            TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {sourceIp} → {device.Name} | {op} {oid} {val}");
+            while (TrafficLog.Count > 500)
+                TrafficLog.RemoveAt(TrafficLog.Count - 1);
+
+            TrafficReceived?.Invoke(device.Name, op, oid, val, sourceIp);
+        });
+
+        var port = SimulatorPort;
+        var listenIp = SimulatorListenIp;
+        sim.Start(port, device.Community, listenIp);
+
+        _simulators[device.Id] = sim;
+        device.Status = DeviceStatus.Simulating;
+
+        ActiveSimulators.Add(new SimulatorDeviceStatus
+        {
+            DeviceId = device.Id,
+            DeviceName = device.Name,
+            ListenIp = listenIp,
+            Port = port,
+            OidCount = walkData.Count,
+            OriginalIp = device.IpAddress,
+            OriginalPort = device.Port
+        });
+
+        SimulatorPort++; // Next device gets next port
+    }
+
+    [RelayCommand]
+    private void StopSimulator()
+    {
+        var device = SelectedDevice;
+        if (device == null) return;
+
+        if (_simulators.TryRemove(device.Id, out var sim))
+        {
+            sim.Stop();
+            sim.Dispose();
+            device.Status = DeviceStatus.Idle;
+
+            var status = ActiveSimulators.FirstOrDefault(s => s.DeviceId == device.Id);
+            if (status != null)
+                ActiveSimulators.Remove(status);
+        }
+    }
+
+    [RelayCommand]
+    private void StopAll()
+    {
+        foreach (var kvp in _simulators)
+        {
+            kvp.Value.Stop();
+            kvp.Value.Dispose();
+        }
+        _simulators.Clear();
+        ActiveSimulators.Clear();
+        LogEntries.Add("All simulators stopped.");
+    }
+
+    /// <summary>
+    /// Inject a recorded session into the selected simulator.
+    /// Values update dynamically over time, looping the recording.
+    /// </summary>
+    [RelayCommand]
+    private async Task InjectSession()
+    {
+        var device = SelectedDevice;
+        if (device == null)
+        {
+            LogEntries.Add("Select a device first.");
+            return;
+        }
+
+        if (!_simulators.TryGetValue(device.Id, out var sim))
+        {
+            LogEntries.Add($"No running simulator for {device.Name}. Start it first!");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(SelectedSessionName))
+        {
+            LogEntries.Add("Select a session to inject.");
+            return;
+        }
+
+        var session = await _store.LoadSessionAsync(device, SelectedSessionName);
+        if (session == null || session.Frames.Count == 0)
+        {
+            LogEntries.Add($"No recorded session '{SelectedSessionName}' for {device.Name}.");
+            return;
+        }
+
+        sim.InjectionProgress += (current, total) => App.Current.Dispatcher.Invoke(() =>
+        {
+            InjectionStatus = $"Frame {current}/{total}";
+        });
+
+        sim.InjectionFrameApplied += (frameNum, records) => App.Current.Dispatcher.Invoke(() =>
+        {
+            QueryResults.Clear();
+            foreach (var r in records)
+            {
+                QueryResults.Add(new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = $"INJ#{frameNum}",
+                    Oid = r.Oid,
+                    ValueType = r.ValueType,
+                    Value = r.Value,
+                    IsSuccess = true
+                });
+            }
+
+            // Notify Monitor about injection activity
+            TrafficReceived?.Invoke(device.Name, $"INJ#{frameNum}", $"{records.Count} OIDs", $"Frame {frameNum}", "injection");
+        });
+
+        sim.StartInjection(session);
+        IsInjecting = true;
+        InjectionStatus = $"Injecting {session.Frames.Count} frames...";
+        LogEntries.Add($"Injection started for {device.Name} — {session.Frames.Count} frames, interval {session.IntervalSeconds}s");
+    }
+
+    [RelayCommand]
+    private void StopInjection()
+    {
+        var device = SelectedDevice;
+        if (device != null && _simulators.TryGetValue(device.Id, out var sim))
+        {
+            sim.StopInjection();
+        }
+        IsInjecting = false;
+        InjectionStatus = "Stopped";
+    }
+
+    [RelayCommand]
+    private async Task PlayTraps()
+    {
+        var device = SelectedDevice;
+        if (device == null) return;
+
+        var traps = await _store.LoadTrapsAsync(device);
+        if (traps.Count == 0)
+        {
+            LogEntries.Add($"No recorded traps for {device.Name}.");
+            return;
+        }
+
+        foreach (var trap in traps)
+        {
+            await _trapGenerator.SendTrapAsync(trap, TrapTargetIp, TrapTargetPort);
+        }
+    }
+
+    [RelayCommand]
+    private async Task QueryGet()
+    {
+        var tempDevice = BuildTempDevice();
+        if (tempDevice == null || string.IsNullOrWhiteSpace(QueryOid)) return;
+
+        IsQuerying = true;
+        try
+        {
+            var result = await _recorder.GetSingleAsync(tempDevice, QueryOid);
+            if (result != null)
+            {
+                QueryResults.Insert(0, new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "GET",
+                    Oid = result.Oid,
+                    ValueType = result.ValueType,
+                    Value = result.Value,
+                    IsSuccess = true
+                });
+            }
+            else
+            {
+                QueryResults.Insert(0, new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "GET",
+                    Oid = QueryOid,
+                    Value = "No response",
+                    IsSuccess = false
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            QueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "GET",
+                Oid = QueryOid,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+        }
+        finally
+        {
+            IsQuerying = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task QuerySet()
+    {
+        var tempDevice = BuildTempDevice();
+        if (tempDevice == null || string.IsNullOrWhiteSpace(QueryOid)) return;
+
+        IsQuerying = true;
+        try
+        {
+            var success = await _recorder.SetAsync(tempDevice, QueryOid, SetValue, SetValueType);
+
+            QueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "SET",
+                Oid = QueryOid,
+                ValueType = SetValueType,
+                Value = success ? SetValue : "SET failed",
+                IsSuccess = success
+            });
+
+            if (success)
+            {
+                // Verify with GET
+                var verify = await _recorder.GetSingleAsync(tempDevice, QueryOid);
+                if (verify != null)
+                {
+                    QueryResults.Insert(0, new QueryResultItem
+                    {
+                        Time = DateTime.Now.ToString("HH:mm:ss"),
+                        Operation = "VERIFY",
+                        Oid = verify.Oid,
+                        ValueType = verify.ValueType,
+                        Value = verify.Value,
+                        IsSuccess = true
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            QueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "SET",
+                Oid = QueryOid,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+        }
+        finally
+        {
+            IsQuerying = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task QueryWalk()
+    {
+        var tempDevice = BuildTempDevice();
+        if (tempDevice == null || string.IsNullOrWhiteSpace(QueryOid)) return;
+
+        IsQuerying = true;
+        QueryResults.Clear();
+
+        try
+        {
+            var results = await _recorder.WalkDeviceAsync(tempDevice);
+            var prefix = QueryOid.TrimEnd('.', '0');
+            var filtered = results
+                .Where(r => r.Oid.StartsWith(prefix))
+                .ToList();
+
+            foreach (var r in filtered.Take(500))
+            {
+                QueryResults.Add(new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "WALK",
+                    Oid = r.Oid,
+                    ValueType = r.ValueType,
+                    Value = r.Value,
+                    IsSuccess = true
+                });
+            }
+
+            if (filtered.Count > 500)
+            {
+                QueryResults.Add(new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "INFO",
+                    Oid = "",
+                    Value = $"... and {filtered.Count - 500} more OIDs",
+                    IsSuccess = true
+                });
+            }
+
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Walk complete — {filtered.Count} OIDs from {SelectedSimulator?.DeviceName}");
+        }
+        catch (Exception ex)
+        {
+            QueryResults.Add(new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "WALK",
+                Oid = QueryOid,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+        }
+        finally
+        {
+            IsQuerying = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearQueryResults()
+    {
+        QueryResults.Clear();
+    }
+
+    /// <summary>
+    /// Called when user clicks a Traffic Log entry. Parses OID and auto-GETs.
+    /// Format: [HH:mm:ss] DeviceName | OP OID Value
+    /// </summary>
+    [RelayCommand]
+    private async Task SelectTrafficEntry(string? entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry)) return;
+
+        var match = Regex.Match(entry, @"\|\s+\w+\s+([\d\.]+)");
+        if (match.Success)
+        {
+            QueryOid = match.Groups[1].Value;
+            await QueryGet();
+        }
+    }
+
+    /// <summary>
+    /// Called when user clicks a Query Results row. Copies OID and auto-GETs.
+    /// </summary>
+    [RelayCommand]
+    private async Task SelectQueryResult(QueryResultItem? item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.Oid)) return;
+
+        QueryOid = item.Oid;
+        await QueryGet();
+    }
+}
+
+public class SimulatorDeviceStatus
+{
+    public string DeviceId { get; set; } = string.Empty;
+    public string DeviceName { get; set; } = string.Empty;
+    public string ListenIp { get; set; } = "0.0.0.0";
+    public int Port { get; set; }
+    public int OidCount { get; set; }
+    public string OriginalIp { get; set; } = string.Empty;
+    public int OriginalPort { get; set; }
+}
