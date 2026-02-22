@@ -81,15 +81,21 @@
                         <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                             <Setter Property="Padding" Value="2,1"/>
+                            <Setter Property="Tag"
+                                    Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=TreeView}}"/>
                             <Setter Property="ContextMenu">
                                 <Setter.Value>
                                     <ContextMenu>
                                         <MenuItem Header="Expand All Children"
-                                                  Command="{Binding DataContext.ExpandAllChildrenCommand, Source={x:Reference mibTree}}"
-                                                  CommandParameter="{Binding}"/>
+                                                  Command="{Binding PlacementTarget.Tag.ExpandAllChildrenCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                         <MenuItem Header="Collapse All Children"
-                                                  Command="{Binding DataContext.CollapseAllChildrenCommand, Source={x:Reference mibTree}}"
-                                                  CommandParameter="{Binding}"/>
+                                                  Command="{Binding PlacementTarget.Tag.CollapseAllChildrenCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                     </ContextMenu>
                                 </Setter.Value>
                             </Setter>
