@@ -1,5 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using SnmpSharpNet;
 using SNMPSimMgr.Models;
 
@@ -51,7 +55,11 @@ public class TrapListenerService : IDisposable
         {
             try
             {
-                var result = await _listener!.ReceiveAsync(ct);
+                var receiveTask = _listener!.ReceiveAsync();
+                var cancelTask = Task.Delay(Timeout.Infinite, ct);
+                var completed = await Task.WhenAny(receiveTask, cancelTask);
+                if (completed == cancelTask) break;
+                var result = receiveTask.Result;
                 ProcessTrap(result.Buffer, result.RemoteEndPoint);
             }
             catch (OperationCanceledException) { break; }

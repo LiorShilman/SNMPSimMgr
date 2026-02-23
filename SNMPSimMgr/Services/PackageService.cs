@@ -84,7 +84,7 @@ public class PackageService
             }
 
             var profilesJson = JsonSerializer.Serialize(exportDevices, JsonOptions);
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "devices.json"), profilesJson);
+            await Task.Run(() => File.WriteAllText(Path.Combine(tempDir, "devices.json"), profilesJson));
 
             // Copy each device's data folder
             foreach (var device in devices)
@@ -105,7 +105,7 @@ public class PackageService
                 Version = "1.1"
             };
             var metaJson = JsonSerializer.Serialize(metadata, JsonOptions);
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), metaJson);
+            await Task.Run(() => File.WriteAllText(Path.Combine(tempDir, "package.json"), metaJson));
 
             // Create zip
             if (File.Exists(outputPath))
@@ -136,7 +136,7 @@ public class PackageService
             if (!File.Exists(profilesPath))
                 throw new InvalidOperationException("Invalid package: devices.json not found.");
 
-            var json = await File.ReadAllTextAsync(profilesPath);
+            var json = await Task.Run(() => File.ReadAllText(profilesPath));
             var devices = JsonSerializer.Deserialize<List<DeviceProfile>>(json, JsonOptions) ?? new();
 
             // Assign new IDs to avoid conflicts

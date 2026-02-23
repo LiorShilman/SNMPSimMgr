@@ -134,10 +134,10 @@ public partial class MibBrowserViewModel : ObservableObject
         foreach (var record in _allRecords)
         {
             if (string.IsNullOrEmpty(filter) ||
-                record.Oid.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                record.Value.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                (record.Name?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true) ||
-                ResolveName(record.Oid, "").Contains(filter, StringComparison.OrdinalIgnoreCase))
+                record.Oid.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                record.Value.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (record.Name?.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 == true) ||
+                ResolveName(record.Oid, "").IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 FlatRecords.Add(record);
             }
@@ -160,9 +160,9 @@ public partial class MibBrowserViewModel : ObservableObject
                 childMatch = true;
         }
 
-        bool selfMatch = node.Oid.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                          node.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                          (node.Value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true);
+        bool selfMatch = node.Oid.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          node.DisplayName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          (node.Value?.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 == true);
 
         node.IsExpanded = childMatch;
         node.IsHighlighted = selfMatch;

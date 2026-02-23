@@ -242,7 +242,7 @@ public partial class ScenarioViewModel : ObservableObject
         if (dialog.ShowDialog() != true) return;
 
         var json = JsonSerializer.Serialize(scenario, new JsonSerializerOptions { WriteIndented = true });
-        await System.IO.File.WriteAllTextAsync(dialog.FileName, json);
+        await Task.Run(() => System.IO.File.WriteAllText(dialog.FileName, json));
         PlayStatus = $"Saved: {System.IO.Path.GetFileName(dialog.FileName)}";
     }
 
@@ -256,7 +256,7 @@ public partial class ScenarioViewModel : ObservableObject
 
         if (dialog.ShowDialog() != true) return;
 
-        var json = await System.IO.File.ReadAllTextAsync(dialog.FileName);
+        var json = await Task.Run(() => System.IO.File.ReadAllText(dialog.FileName));
         var scenario = JsonSerializer.Deserialize<SimulationScenario>(json);
         if (scenario == null) return;
 

@@ -102,7 +102,8 @@ public static class MibParserService
         {
             foreach (var kvp in rawAssignments)
             {
-                allAssignments.TryAdd(kvp.Key, kvp.Value);
+                if (!allAssignments.ContainsKey(kvp.Key))
+                    allAssignments[kvp.Key] = kvp.Value;
             }
         }
 
@@ -112,8 +113,11 @@ public static class MibParserService
         do
         {
             lastCount = resolved.Count;
-            foreach (var (name, (parent, index)) in allAssignments)
+            foreach (var kvp in allAssignments)
             {
+                var name = kvp.Key;
+                var parent = kvp.Value.parent;
+                var index = kvp.Value.index;
                 if (resolved.ContainsKey(name)) continue;
                 if (resolved.TryGetValue(parent, out var parentOid))
                     resolved[name] = $"{parentOid}.{index}";
@@ -128,8 +132,11 @@ public static class MibParserService
             var info = new MibFileInfo { FileName = fileName, ModuleName = moduleName };
             var definitions = new Dictionary<string, MibDefinition>();
 
-            foreach (var (name, (parent, index)) in rawAssignments)
+            foreach (var kvp in rawAssignments)
             {
+                var name = kvp.Key;
+                var parent = kvp.Value.parent;
+                var index = kvp.Value.index;
                 if (!resolved.TryGetValue(name, out var oid)) continue;
 
                 var def = new MibDefinition
@@ -186,8 +193,11 @@ public static class MibParserService
         do
         {
             lastCount = resolved.Count;
-            foreach (var (name, (parent, index)) in rawAssignments)
+            foreach (var kvp in rawAssignments)
             {
+                var name = kvp.Key;
+                var parent = kvp.Value.parent;
+                var index = kvp.Value.index;
                 if (resolved.ContainsKey(name)) continue;
                 if (resolved.TryGetValue(parent, out var parentOid))
                     resolved[name] = $"{parentOid}.{index}";
@@ -195,8 +205,11 @@ public static class MibParserService
         } while (resolved.Count > lastCount);
 
         // Phase 3: Build MibDefinition objects
-        foreach (var (name, (parent, index)) in rawAssignments)
+        foreach (var kvp2 in rawAssignments)
         {
+            var name = kvp2.Key;
+            var parent = kvp2.Value.parent;
+            var index = kvp2.Value.index;
             if (!resolved.TryGetValue(name, out var oid)) continue;
 
             var def = new MibDefinition
@@ -278,6 +291,6 @@ public static class MibParserService
                 }
             }
         }
-        return string.Join('\n', lines);
+        return string.Join("\n", lines);
     }
 }

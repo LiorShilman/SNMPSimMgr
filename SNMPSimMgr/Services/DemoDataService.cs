@@ -4,6 +4,7 @@ namespace SNMPSimMgr.Services;
 
 public class DemoDataService
 {
+    private static readonly Random _random = new();
     private readonly DeviceProfileStore _store;
 
     public DemoDataService(DeviceProfileStore store)
@@ -90,8 +91,8 @@ public class DemoDataService
             string alias = i <= 24 ? $"Port {i}" : $"Uplink {i - 24}";
             int speed = i <= 24 ? 100_000_000 : 1_000_000_000;
             int status = (i % 5 == 0) ? 2 : 1; // every 5th port is down
-            long inOctets = status == 1 ? Random.Shared.Next(100_000, 50_000_000) : 0;
-            long outOctets = status == 1 ? Random.Shared.Next(100_000, 50_000_000) : 0;
+            long inOctets = status == 1 ? _random.Next(100_000, 50_000_000) : 0;
+            long outOctets = status == 1 ? _random.Next(100_000, 50_000_000) : 0;
 
             data.AddRange(InterfaceEntry(i, name, alias, speed, status, inOctets, outOctets));
         }
@@ -132,8 +133,8 @@ public class DemoDataService
         for (int i = 0; i < 4; i++)
         {
             data.AddRange(InterfaceEntry(i + 1, names[i], aliases[i], speeds[i], 1,
-                Random.Shared.Next(1_000_000, 100_000_000),
-                Random.Shared.Next(1_000_000, 100_000_000)));
+                _random.Next(1_000_000, 100_000_000),
+                _random.Next(1_000_000, 100_000_000)));
         }
 
         // Routing table entries
@@ -183,8 +184,8 @@ public class DemoDataService
         for (int i = 0; i < 3; i++)
         {
             data.AddRange(InterfaceEntry(i + 1, names[i], aliases[i], speeds[i], 1,
-                Random.Shared.Next(500_000, 20_000_000),
-                Random.Shared.Next(500_000, 20_000_000)));
+                _random.Next(500_000, 20_000_000),
+                _random.Next(500_000, 20_000_000)));
         }
 
         // Wireless clients (Ubiquiti-specific OIDs)

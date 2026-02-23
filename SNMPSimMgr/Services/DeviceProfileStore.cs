@@ -34,28 +34,28 @@ public class DeviceProfileStore
         if (!File.Exists(ProfilesPath))
             return new List<DeviceProfile>();
 
-        var json = await File.ReadAllTextAsync(ProfilesPath);
+        var json = await Task.Run(() => File.ReadAllText(ProfilesPath));
         return JsonSerializer.Deserialize<List<DeviceProfile>>(json, JsonOptions) ?? new();
     }
 
     public async Task SaveProfilesAsync(List<DeviceProfile> profiles)
     {
         var json = JsonSerializer.Serialize(profiles, JsonOptions);
-        await File.WriteAllTextAsync(ProfilesPath, json);
+        await Task.Run(() => File.WriteAllText(ProfilesPath, json));
     }
 
     public async Task SaveWalkDataAsync(DeviceProfile device, List<SnmpRecord> records)
     {
         var path = Path.Combine(DeviceFolder(device), "walk.json");
         var json = JsonSerializer.Serialize(records, JsonOptions);
-        await File.WriteAllTextAsync(path, json);
+        await Task.Run(() => File.WriteAllText(path, json));
     }
 
     public async Task<List<SnmpRecord>> LoadWalkDataAsync(DeviceProfile device)
     {
         var path = Path.Combine(DeviceFolder(device), "walk.json");
         if (!File.Exists(path)) return new();
-        var json = await File.ReadAllTextAsync(path);
+        var json = await Task.Run(() => File.ReadAllText(path));
         return JsonSerializer.Deserialize<List<SnmpRecord>>(json, JsonOptions) ?? new();
     }
 
@@ -63,14 +63,14 @@ public class DeviceProfileStore
     {
         var path = Path.Combine(DeviceFolder(device), "traps.json");
         var json = JsonSerializer.Serialize(traps, JsonOptions);
-        await File.WriteAllTextAsync(path, json);
+        await Task.Run(() => File.WriteAllText(path, json));
     }
 
     public async Task<List<TrapRecord>> LoadTrapsAsync(DeviceProfile device)
     {
         var path = Path.Combine(DeviceFolder(device), "traps.json");
         if (!File.Exists(path)) return new();
-        var json = await File.ReadAllTextAsync(path);
+        var json = await Task.Run(() => File.ReadAllText(path));
         return JsonSerializer.Deserialize<List<TrapRecord>>(json, JsonOptions) ?? new();
     }
 
@@ -78,14 +78,14 @@ public class DeviceProfileStore
     {
         var path = Path.Combine(DeviceFolder(device), "scenarios.json");
         var json = JsonSerializer.Serialize(scenarios, JsonOptions);
-        await File.WriteAllTextAsync(path, json);
+        await Task.Run(() => File.WriteAllText(path, json));
     }
 
     public async Task<List<TrapScenario>> LoadScenariosAsync(DeviceProfile device)
     {
         var path = Path.Combine(DeviceFolder(device), "scenarios.json");
         if (!File.Exists(path)) return new();
-        var json = await File.ReadAllTextAsync(path);
+        var json = await Task.Run(() => File.ReadAllText(path));
         return JsonSerializer.Deserialize<List<TrapScenario>>(json, JsonOptions) ?? new();
     }
 
@@ -113,7 +113,7 @@ public class DeviceProfileStore
         var fileName = SafeFileName(session.Name) + ".json";
         var path = Path.Combine(folder, fileName);
         var json = JsonSerializer.Serialize(session, JsonOptions);
-        await File.WriteAllTextAsync(path, json);
+        await Task.Run(() => File.WriteAllText(path, json));
     }
 
     public async Task<RecordedSession?> LoadSessionAsync(DeviceProfile device, string sessionName)
@@ -122,7 +122,7 @@ public class DeviceProfileStore
         var fileName = SafeFileName(sessionName) + ".json";
         var path = Path.Combine(folder, fileName);
         if (!File.Exists(path)) return null;
-        var json = await File.ReadAllTextAsync(path);
+        var json = await Task.Run(() => File.ReadAllText(path));
         return JsonSerializer.Deserialize<RecordedSession>(json, JsonOptions);
     }
 
@@ -134,14 +134,14 @@ public class DeviceProfileStore
         var oldPath = Path.Combine(DeviceFolder(device), "session.json");
         if (File.Exists(oldPath))
         {
-            var json = await File.ReadAllTextAsync(oldPath);
+            var json = await Task.Run(() => File.ReadAllText(oldPath));
             var oldSession = JsonSerializer.Deserialize<RecordedSession>(json, JsonOptions);
             if (oldSession != null)
             {
                 if (string.IsNullOrEmpty(oldSession.Name))
                     oldSession.Name = "session_migrated";
                 var newPath = Path.Combine(folder, SafeFileName(oldSession.Name) + ".json");
-                await File.WriteAllTextAsync(newPath, JsonSerializer.Serialize(oldSession, JsonOptions));
+                await Task.Run(() => File.WriteAllText(newPath, JsonSerializer.Serialize(oldSession, JsonOptions)));
             }
             File.Delete(oldPath);
         }

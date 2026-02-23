@@ -201,7 +201,8 @@ public partial class RecorderViewModel : ObservableObject
         IsQuerying = true;
         try
         {
-            var oids = QueryOid.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var oids = QueryOid.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(o => o.Trim()).ToArray();
 
             if (oids.Length == 1)
             {

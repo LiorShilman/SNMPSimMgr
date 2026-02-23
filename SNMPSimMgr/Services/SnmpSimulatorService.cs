@@ -1,6 +1,11 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using SnmpSharpNet;
 using SNMPSimMgr.Models;
 
@@ -87,8 +92,12 @@ public class SnmpSimulatorService : IDisposable
         {
             try
             {
-                var result = await _listener!.ReceiveAsync(ct);
-                _ = Task.Run(() => HandleRequest(result.Buffer, result.RemoteEndPoint, community), ct);
+                var receiveTask = _listener!.ReceiveAsync();
+                var cancelTask = Task.Delay(Timeout.Infinite, ct);
+                var completed = await Task.WhenAny(receiveTask, cancelTask);
+                if (completed == cancelTask) break;
+                var result = receiveTask.Result;
+                _ = Task.Run(() => HandleRequest(result.Buffer, result.RemoteEndPoint, community));
             }
             catch (OperationCanceledException) { break; }
             catch (ObjectDisposedException) { break; }
@@ -293,7 +302,7 @@ public class SnmpSimulatorService : IDisposable
 
             while (!ct.IsCancellationRequested)
             {
-                long startTick = Environment.TickCount64;
+                long startTick = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency;
 
                 for (int i = 0; i < session.Frames.Count; i++)
                 {
@@ -303,7 +312,7 @@ public class SnmpSimulatorService : IDisposable
 
                     // Wait until the right time for this frame
                     long targetMs = frame.ElapsedMs;
-                    long elapsed = Environment.TickCount64 - startTick;
+                    long elapsed = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency - startTick;
                     if (targetMs > elapsed)
                     {
                         try { await Task.Delay((int)(targetMs - elapsed), ct); }

@@ -2,17 +2,17 @@ namespace SNMPSimMgr.Models;
 
 public static class SnmpVersionOptionValues
 {
-    public static SnmpVersionOption[] All => Enum.GetValues<SnmpVersionOption>();
+    public static SnmpVersionOption[] All => (SnmpVersionOption[])Enum.GetValues(typeof(SnmpVersionOption));
 }
 
 public static class AuthProtocolValues
 {
-    public static AuthProtocol[] All => Enum.GetValues<AuthProtocol>();
+    public static AuthProtocol[] All => (AuthProtocol[])Enum.GetValues(typeof(AuthProtocol));
 }
 
 public static class PrivProtocolValues
 {
-    public static PrivProtocol[] All => Enum.GetValues<PrivProtocol>();
+    public static PrivProtocol[] All => (PrivProtocol[])Enum.GetValues(typeof(PrivProtocol));
 }
 
 public static class SnmpTypeNames
