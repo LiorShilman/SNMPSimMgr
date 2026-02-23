@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using SNMPSimMgr.Models;
 using SNMPSimMgr.Services;
 
@@ -10,18 +12,23 @@ public partial class MibBrowserViewModel : ObservableObject
 {
     private readonly DeviceProfileStore _store;
     private readonly DeviceListViewModel _deviceList;
+    private readonly MibStore _mibStore;
     private List<SnmpRecord> _allRecords = new();
 
     public ObservableCollection<OidTreeNode> RootNodes { get; } = new();
     public ObservableCollection<SnmpRecord> FlatRecords { get; } = new();
+    public ObservableCollection<string> LoadedMibFiles => _mibStore.LoadedFileNames;
 
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private int _totalOids;
     [ObservableProperty] private string _loadedDeviceName = string.Empty;
     [ObservableProperty] private OidTreeNode? _selectedNode;
     [ObservableProperty] private bool _showTree = true;
+    [ObservableProperty] private int _mibCount;
+    [ObservableProperty] private string _mibStatus = string.Empty;
+    [ObservableProperty] private bool _hasDevice;
 
-    // Well-known OID names for display
+    // Well-known OID names as fallback
     private static readonly Dictionary<string, string> KnownOids = new()
     {
         ["1.3"] = "org",
@@ -62,10 +69,11 @@ public partial class MibBrowserViewModel : ObservableObject
         ["1.3.6.1.4.1"] = "enterprises",
     };
 
-    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList)
+    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList, MibStore mibStore)
     {
         _store = store;
         _deviceList = deviceList;
+        _mibStore = mibStore;
 
         _deviceList.PropertyChanged += async (_, e) =>
         {
@@ -82,9 +90,20 @@ public partial class MibBrowserViewModel : ObservableObject
             RootNodes.Clear();
             FlatRecords.Clear();
             TotalOids = 0;
+            MibCount = 0;
+            MibStatus = string.Empty;
             LoadedDeviceName = string.Empty;
+            HasDevice = false;
+            _mibStore.LoadedOids.Clear();
+            _mibStore.LoadedFileNames.Clear();
             return;
         }
+
+        HasDevice = true;
+
+        // Load device's MIB files
+        await _mibStore.LoadForDeviceAsync(device);
+        MibCount = _mibStore.TotalDefinitions;
 
         _allRecords = await _store.LoadWalkDataAsync(device);
         LoadedDeviceName = device.Name;
@@ -98,6 +117,15 @@ public partial class MibBrowserViewModel : ObservableObject
         ApplyFilter();
     }
 
+    private string ResolveName(string oid, string fallbackSegment)
+    {
+        if (_mibStore.LoadedOids.TryGetValue(oid, out var def))
+            return def.Name;
+        if (KnownOids.TryGetValue(oid, out var known))
+            return known;
+        return fallbackSegment;
+    }
+
     private void ApplyFilter()
     {
         FlatRecords.Clear();
@@ -108,7 +136,8 @@ public partial class MibBrowserViewModel : ObservableObject
             if (string.IsNullOrEmpty(filter) ||
                 record.Oid.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
                 record.Value.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                (record.Name?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true))
+                (record.Name?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true) ||
+                ResolveName(record.Oid, "").Contains(filter, StringComparison.OrdinalIgnoreCase))
             {
                 FlatRecords.Add(record);
             }
@@ -158,9 +187,7 @@ public partial class MibBrowserViewModel : ObservableObject
                 if (nodeMap.ContainsKey(currentPath))
                     continue;
 
-                var name = KnownOids.TryGetValue(currentPath, out var knownName)
-                    ? knownName
-                    : parts[i];
+                var name = ResolveName(currentPath, parts[i]);
 
                 var isLeaf = (i == parts.Length - 1);
                 var node = new OidTreeNode
@@ -216,6 +243,102 @@ public partial class MibBrowserViewModel : ObservableObject
     private void ToggleView()
     {
         ShowTree = !ShowTree;
+    }
+
+    [RelayCommand]
+    private async Task LoadMibFile()
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null) return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Load MIB File",
+            Filter = "MIB files (*.mib;*.txt;*.my)|*.mib;*.txt;*.my|All files (*.*)|*.*",
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        int loaded = 0;
+        foreach (var file in dialog.FileNames)
+        {
+            try
+            {
+                var info = await _mibStore.LoadMibFileAsync(file);
+                loaded++;
+                MibStatus = $"Loaded {info.ModuleName} — {info.DefinitionCount} definitions";
+
+                // Add file path to device profile if not already there
+                if (!device.MibFilePaths.Contains(file, StringComparer.OrdinalIgnoreCase))
+                    device.MibFilePaths.Add(file);
+            }
+            catch (Exception ex)
+            {
+                MibStatus = $"Error loading {Path.GetFileName(file)}: {ex.Message}";
+            }
+        }
+
+        if (loaded > 0)
+        {
+            // Save device profile with updated MibFilePaths
+            await _deviceList.SaveAsync();
+
+            // Reload MIBs for this device and rebuild tree
+            await _mibStore.LoadForDeviceAsync(device);
+            MibCount = _mibStore.TotalDefinitions;
+
+            if (_allRecords.Count > 0)
+            {
+                BuildTree(_allRecords);
+                ApplyFilter();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveMib(string? displayName)
+    {
+        if (string.IsNullOrEmpty(displayName)) return;
+
+        var device = _deviceList.SelectedDevice;
+        if (device == null) return;
+
+        // displayName looks like "RFC1213-MIB (142)" — find matching file path by module name
+        var moduleName = displayName.Contains('(')
+            ? displayName[..displayName.LastIndexOf('(')].Trim()
+            : displayName;
+
+        // Find the file path that produced this module name
+        string? pathToRemove = null;
+        foreach (var path in device.MibFilePaths)
+        {
+            try
+            {
+                var info = await _mibStore.LoadMibFileAsync(path);
+                if (info.ModuleName == moduleName)
+                {
+                    pathToRemove = path;
+                    break;
+                }
+            }
+            catch { }
+        }
+
+        if (pathToRemove != null)
+            device.MibFilePaths.Remove(pathToRemove);
+
+        // Save and reload
+        await _deviceList.SaveAsync();
+        await _mibStore.LoadForDeviceAsync(device);
+        MibCount = _mibStore.TotalDefinitions;
+        MibStatus = $"Removed {moduleName} — {_mibStore.TotalDefinitions} definitions remaining";
+
+        if (_allRecords.Count > 0)
+        {
+            BuildTree(_allRecords);
+            ApplyFilter();
+        }
     }
 
     [RelayCommand]

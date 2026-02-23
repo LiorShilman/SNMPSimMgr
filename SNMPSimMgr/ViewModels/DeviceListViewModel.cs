@@ -272,7 +272,7 @@ public partial class DeviceListViewModel : ObservableObject
         }
     }
 
-    private async Task SaveAsync()
+    public async Task SaveAsync()
     {
         await _store.SaveProfilesAsync(Devices.ToList());
     }

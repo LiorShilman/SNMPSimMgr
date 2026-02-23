@@ -19,7 +19,7 @@
             <StackPanel>
                 <TextBlock Text="מדריך למשתמש" FontSize="22" FontWeight="Bold"
                            Foreground="#E8EAED"/>
-                <TextBlock Text="SNMP SimManager v1.0" FontSize="13"
+                <TextBlock Text="SNMP SimManager v1.1" FontSize="13"
                            Foreground="#8C95A6" FlowDirection="LeftToRight"
                            HorizontalAlignment="Right"/>
             </StackPanel>
@@ -68,11 +68,12 @@
                         Export / Import (חדש!)
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
-                        <Bold>Export:</Bold> מייצא את כל המכשירים + הקלטות Walk/Sessions כקובץ .snmpsim אחד.
-                        אידיאלי לשיתוף בין מחשבים, גיבוי, או העברת סביבה לעמית.
+                        <Bold>Export:</Bold> מייצא את כל המכשירים + הקלטות Walk/Sessions + קבצי MIB
+                        כקובץ .snmpsim אחד. אידיאלי לשיתוף בין מחשבים, גיבוי, או העברת סביבה לעמית.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
-                        <Bold>Import:</Bold> טוען קובץ .snmpsim ומוסיף את כל המכשירים + הנתונים למערכת.
+                        <Bold>Import:</Bold> טוען קובץ .snmpsim ומוסיף את כל המכשירים + הנתונים + קבצי MIB למערכת.
+                        קבצי MIB משויכים אוטומטית למכשירים המתאימים.
                     </TextBlock>
                 </StackPanel>
 
@@ -191,7 +192,34 @@
                         <Bold>תצוגה כפולה:</Bold> מעבר בין Tree View ל-Flat View (טבלה שטוחה).
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Expand / Collapse All:</Bold> פתיחה או סגירה של כל ענפי העץ. לחיצה ימנית
+                        על ענף בודד מציגה אפשרות ל-Expand/Collapse All Children.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
                         <Bold>שמות MIB:</Bold> OIDs מוכרים (system, interfaces, וכו') מוצגים עם שמות קריאים.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        טעינת קבצי MIB (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Load MIB:</Bold> לחץ "Load MIB" כדי לטעון קבצי MIB מהדיסק (פורמטים: .mib, .txt, .my).
+                        קבצי MIB מכילים את שמות ה-OIDs של חומרות ספציפיות (למשל: Cisco, HP, Juniper).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Per-Device:</Bold> קבצי MIB משויכים למכשיר הנבחר — כל מכשיר יכול לקבל
+                        MIB-ים שונים. כשעוברים בין מכשירים, ה-MIB-ים נטענים אוטומטית.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>תלויות בין MIBs:</Bold> ניתן לטעון מספר קבצי MIB ביחד — המערכת תפתור
+                        תלויות צולבות אוטומטית. למשל, אם IF-MIB משתמש בשמות מ-SNMPv2-SMI,
+                        טען את שניהם ושמות ה-OIDs ייפתרו במלואם.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>הסרה:</Bold> ליד כל MIB טעון מופיע כפתור X להסרתו מהמכשיר.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>Export/Import:</Bold> כשמייצאים Package, כל קבצי ה-MIB המשויכים
+                        נכללים בקובץ .snmpsim ומשוחזרים אוטומטית בייבוא.
                     </TextBlock>
                 </StackPanel>
 
@@ -446,7 +474,7 @@
         <Border Grid.Row="2" Background="#232836" Padding="20,10"
                 BorderBrush="#3D4663" BorderThickness="0,1,0,0">
             <DockPanel>
-                <TextBlock Text="SNMP SimManager v1.0" Foreground="#8C95A6" FontSize="12"
+                <TextBlock Text="SNMP SimManager v1.1" Foreground="#8C95A6" FontSize="12"
                            VerticalAlignment="Center" FlowDirection="LeftToRight"/>
                 <Button Content="סגור" DockPanel.Dock="Left" HorizontalAlignment="Left"
                         Click="CloseButton_Click" MinWidth="80" Style="{StaticResource AccentButton}"/>

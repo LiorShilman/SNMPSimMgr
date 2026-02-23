@@ -28,7 +28,7 @@
                     <TextBlock Text="SNMP SimManager" FontSize="18" FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
-                    <TextBlock Text="v1.0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                    <TextBlock Text="v1.1" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                VerticalAlignment="Center" Margin="8,2,0,0"/>
                 </StackPanel>
 

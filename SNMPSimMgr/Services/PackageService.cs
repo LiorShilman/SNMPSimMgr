@@ -6,12 +6,14 @@ using SNMPSimMgr.Models;
 namespace SNMPSimMgr.Services;
 
 /// <summary>
-/// Exports/imports all device profiles + data as a .snmpsim zip package.
+/// Exports/imports all device profiles + data + MIB files as a .snmpsim zip package.
 /// </summary>
 public class PackageService
 {
     private static readonly string DataRoot = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "Data");
+
+    private static readonly string MibDir = Path.Combine(DataRoot, "mibs");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,17 +22,68 @@ public class PackageService
 
     /// <summary>
     /// Export all devices and their data to a .snmpsim zip file.
+    /// Includes MIB files referenced by device profiles.
     /// </summary>
     public async Task ExportAsync(string outputPath, List<DeviceProfile> devices)
     {
-        // Create temp staging directory
         var tempDir = Path.Combine(Path.GetTempPath(), $"snmpsim_export_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
 
         try
         {
-            // Write profiles
-            var profilesJson = JsonSerializer.Serialize(devices, JsonOptions);
+            // Collect and copy all MIB files into mibs/ folder
+            var mibsDir = Path.Combine(tempDir, "mibs");
+            Directory.CreateDirectory(mibsDir);
+
+            // Track filename mapping to handle duplicates and build relative paths
+            var copiedMibs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // absolutePath → relative path
+
+            foreach (var device in devices)
+            {
+                foreach (var mibPath in device.MibFilePaths)
+                {
+                    if (copiedMibs.ContainsKey(mibPath)) continue;
+                    if (!File.Exists(mibPath)) continue;
+
+                    var fileName = Path.GetFileName(mibPath);
+
+                    // Handle duplicate filenames from different paths
+                    var destName = fileName;
+                    int counter = 1;
+                    while (File.Exists(Path.Combine(mibsDir, destName)))
+                    {
+                        destName = $"{Path.GetFileNameWithoutExtension(fileName)}_{counter}{Path.GetExtension(fileName)}";
+                        counter++;
+                    }
+
+                    File.Copy(mibPath, Path.Combine(mibsDir, destName));
+                    copiedMibs[mibPath] = $"mibs/{destName}";
+                }
+            }
+
+            // Create export copies of device profiles with relative MIB paths
+            var exportDevices = new List<DeviceProfile>();
+            foreach (var device in devices)
+            {
+                var exportDevice = new DeviceProfile
+                {
+                    Id = device.Id,
+                    Name = device.Name,
+                    IpAddress = device.IpAddress,
+                    Port = device.Port,
+                    Version = device.Version,
+                    Community = device.Community,
+                    V3Credentials = device.V3Credentials,
+                    Status = device.Status,
+                    MibFilePaths = device.MibFilePaths
+                        .Where(p => copiedMibs.ContainsKey(p))
+                        .Select(p => copiedMibs[p])
+                        .ToList()
+                };
+                exportDevices.Add(exportDevice);
+            }
+
+            var profilesJson = JsonSerializer.Serialize(exportDevices, JsonOptions);
             await File.WriteAllTextAsync(Path.Combine(tempDir, "devices.json"), profilesJson);
 
             // Copy each device's data folder
@@ -49,7 +102,7 @@ public class PackageService
             {
                 ExportDate = DateTime.Now,
                 DeviceCount = devices.Count,
-                Version = "1.0"
+                Version = "1.1"
             };
             var metaJson = JsonSerializer.Serialize(metadata, JsonOptions);
             await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), metaJson);
@@ -68,7 +121,7 @@ public class PackageService
 
     /// <summary>
     /// Import devices and data from a .snmpsim zip file.
-    /// Returns the list of imported device profiles.
+    /// Extracts MIB files and updates device profiles with new absolute paths.
     /// </summary>
     public async Task<List<DeviceProfile>> ImportAsync(string packagePath)
     {
@@ -89,6 +142,35 @@ public class PackageService
             // Assign new IDs to avoid conflicts
             foreach (var device in devices)
                 device.Id = Guid.NewGuid().ToString("N");
+
+            // Extract MIB files to Data/mibs/ and update paths
+            var importedMibsDir = Path.Combine(tempDir, "mibs");
+            if (Directory.Exists(importedMibsDir))
+            {
+                Directory.CreateDirectory(MibDir);
+
+                foreach (var device in devices)
+                {
+                    var updatedPaths = new List<string>();
+                    foreach (var relativePath in device.MibFilePaths)
+                    {
+                        // relativePath is like "mibs/IF-MIB.mib"
+                        var fileName = Path.GetFileName(relativePath);
+                        var sourcePath = Path.Combine(tempDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+                        if (!File.Exists(sourcePath)) continue;
+
+                        var destPath = Path.Combine(MibDir, fileName);
+
+                        // Don't overwrite existing MIB files with same name
+                        if (!File.Exists(destPath))
+                            File.Copy(sourcePath, destPath);
+
+                        updatedPaths.Add(destPath);
+                    }
+                    device.MibFilePaths = updatedPaths;
+                }
+            }
 
             // Copy data folders
             foreach (var device in devices)
