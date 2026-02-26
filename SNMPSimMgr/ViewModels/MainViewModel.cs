@@ -1,3 +1,4 @@
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SNMPSimMgr.Services;
@@ -117,6 +118,30 @@ public partial class MainViewModel : ObservableObject
         StatusText = injected > 0
             ? $"▶ {started} simulators running, {injected} injections active (ports {basePort}-{basePort + started - 1})"
             : $"▶ {started} simulators running (ports {basePort}-{basePort + started - 1}) — no sessions to inject";
+    }
+
+    [RelayCommand]
+    private async Task ExitDemoMode()
+    {
+        Simulator.StopAllCommand.Execute(null);
+
+        var dataRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+        foreach (var device in DeviceList.Devices.ToList())
+        {
+            var safe = string.Join("_", device.Name.Split(Path.GetInvalidFileNameChars()));
+            var folder = Path.Combine(dataRoot, safe);
+            if (Directory.Exists(folder))
+            {
+                try { Directory.Delete(folder, true); }
+                catch { }
+            }
+        }
+
+        DeviceList.Devices.Clear();
+        await DeviceList.SaveAsync();
+
+        IsDemoMode = false;
+        StatusText = "Ready";
     }
 
     [RelayCommand]

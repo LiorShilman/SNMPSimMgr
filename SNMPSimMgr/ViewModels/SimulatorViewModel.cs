@@ -229,7 +229,11 @@ public partial class SimulatorViewModel : ObservableObject
                 });
             }
 
-            // Notify Monitor about injection activity
+            // Log injection traffic with device → clients direction
+            TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {device.Name} → Clients | INJ#{frameNum} {records.Count} OIDs");
+            while (TrafficLog.Count > 500)
+                TrafficLog.RemoveAt(TrafficLog.Count - 1);
+
             TrafficReceived?.Invoke(device.Name, $"INJ#{frameNum}", $"{records.Count} OIDs", $"Frame {frameNum}", "injection");
         });
 

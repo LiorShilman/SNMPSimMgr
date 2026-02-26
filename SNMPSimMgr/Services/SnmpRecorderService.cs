@@ -70,6 +70,10 @@ public class SnmpRecorderService
         var target = new UdpTarget(
             ResolveAddress(device.IpAddress), device.Port, DefaultTimeout, DefaultRetries);
 
+        // Register cancellation callback to close the target immediately,
+        // interrupting any blocking Request() call
+        using var reg = ct.Register(() => { try { target.Close(); } catch { } });
+
         var param = new AgentParameters(SnmpVersion.Ver2, new OctetString(device.Community));
         var rootOid = new Oid("1.3.6.1");
         var lastOid = rootOid;
@@ -84,7 +88,15 @@ public class SnmpRecorderService
                 var pdu = new Pdu(PduType.GetNext);
                 pdu.VbList.Add(lastOid);
 
-                var response = target.Request(pdu, param);
+                SnmpPacket? response;
+                try
+                {
+                    response = target.Request(pdu, param);
+                }
+                catch when (ct.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(ct);
+                }
 
                 if (response == null || response.Pdu.ErrorStatus != 0)
                     break;
@@ -110,7 +122,7 @@ public class SnmpRecorderService
         }
         finally
         {
-            target.Close();
+            try { target.Close(); } catch { }
         }
     }
 
@@ -118,6 +130,8 @@ public class SnmpRecorderService
     {
         var target = new UdpTarget(
             ResolveAddress(device.IpAddress), device.Port, DefaultTimeout, DefaultRetries);
+
+        using var reg = ct.Register(() => { try { target.Close(); } catch { } });
 
         var param = BuildV3Params(target, device);
 
@@ -134,7 +148,15 @@ public class SnmpRecorderService
                 var pdu = new ScopedPdu(PduType.GetNext);
                 pdu.VbList.Add(lastOid);
 
-                var response = target.Request(pdu, param);
+                SnmpPacket? response;
+                try
+                {
+                    response = target.Request(pdu, param);
+                }
+                catch when (ct.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(ct);
+                }
 
                 if (response == null || response.Pdu.ErrorStatus != 0)
                     break;
@@ -160,7 +182,7 @@ public class SnmpRecorderService
         }
         finally
         {
-            target.Close();
+            try { target.Close(); } catch { }
         }
     }
 

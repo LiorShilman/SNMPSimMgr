@@ -40,6 +40,9 @@
                         <TextBlock Text="DEMO MODE" FontWeight="Bold" FontSize="11"
                                    Foreground="{StaticResource AccentOrangeBrush}"/>
                     </Border>
+                    <Button Content="Exit Demo" Command="{Binding ExitDemoModeCommand}"
+                            Style="{StaticResource DangerButton}"
+                            Visibility="{Binding IsDemoMode, Converter={StaticResource BoolToVisConverter}}"/>
                     <Button Content="Load Demo Data" Command="{Binding LoadDemoDataCommand}"
                             Style="{StaticResource AccentButton}"/>
                     <Button Content="Start All Simulators" Command="{Binding StartDemoSimulationCommand}"

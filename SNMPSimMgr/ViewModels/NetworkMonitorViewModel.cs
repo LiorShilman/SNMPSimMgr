@@ -29,7 +29,7 @@ public partial class NetworkMonitorViewModel : ObservableObject
     private void OnTrafficReceived(string deviceName, string op, string oid, string val, string sourceIp)
     {
         bool isInjection = sourceIp == "injection";
-        string displayIp = isInjection ? $"INJECTION → {deviceName}" : sourceIp;
+        string displayIp = isInjection ? $"{deviceName} → INJECTION" : sourceIp;
 
         // Track connection node (both clients and injection sources)
         var client = Connections.FirstOrDefault(c => c.IpAddress == displayIp);

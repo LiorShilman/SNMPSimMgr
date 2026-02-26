@@ -30,6 +30,7 @@ public partial class RecorderViewModel : ObservableObject
     [ObservableProperty] private string _sessionName = "";
     [ObservableProperty] private string? _selectedSessionName;
     [ObservableProperty] private string _walkStatus = "Idle";
+    [ObservableProperty] private int _trapListenerPort = 162;
     [ObservableProperty] private string _queryOid = "1.3.6.1.2.1.1.1.0";
     [ObservableProperty] private string _setValue = "";
     [ObservableProperty] private string _setValueType = "OctetString";
@@ -167,7 +168,7 @@ public partial class RecorderViewModel : ObservableObject
         }
         else
         {
-            _trapListener.Start();
+            _trapListener.Start(TrapListenerPort);
             IsListeningTraps = true;
         }
     }
@@ -395,7 +396,9 @@ public partial class RecorderViewModel : ObservableObject
         {
             while (!_sessionCts.Token.IsCancellationRequested)
             {
+                var walkSw = System.Diagnostics.Stopwatch.StartNew();
                 var results = await _recorder.WalkDeviceAsync(device, _sessionCts.Token);
+                walkSw.Stop();
 
                 var frame = new RecordedFrame
                 {
@@ -420,9 +423,16 @@ public partial class RecorderViewModel : ObservableObject
                     });
                 }
 
-                LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Frame #{SessionFrameCount} captured — {results.Count} OIDs ({sw.Elapsed:mm\\:ss})");
-
-                await Task.Delay(TimeSpan.FromSeconds(SessionInterval), _sessionCts.Token);
+                var remaining = TimeSpan.FromSeconds(SessionInterval) - walkSw.Elapsed;
+                if (remaining > TimeSpan.Zero)
+                {
+                    LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Frame #{SessionFrameCount} captured — {results.Count} OIDs (walk {walkSw.Elapsed.TotalSeconds:F1}s, next in {remaining.TotalSeconds:F1}s)");
+                    await Task.Delay(remaining, _sessionCts.Token);
+                }
+                else
+                {
+                    LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Frame #{SessionFrameCount} captured — {results.Count} OIDs (walk {walkSw.Elapsed.TotalSeconds:F1}s > interval {SessionInterval}s, continuing immediately)");
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -440,6 +450,7 @@ public partial class RecorderViewModel : ObservableObject
     [RelayCommand]
     private async Task StopSessionRecording()
     {
+        IsRecordingSession = false;
         _sessionCts?.Cancel();
 
         if (_currentSession != null && _currentSession.Frames.Count > 0)

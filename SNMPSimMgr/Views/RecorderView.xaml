@@ -215,6 +215,21 @@
 
                 <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,2" Height="28"/>
 
+                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,2,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <TextBox Text="{Binding TrapListenerPort, UpdateSourceTrigger=PropertyChanged}" Width="55" Margin="0,0,4,0"
+                         VerticalContentAlignment="Center" FontSize="12"
+                         ToolTip="UDP port to listen for incoming traps">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsListeningTraps}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
                 <Button Command="{Binding ToggleTrapListenerCommand}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
