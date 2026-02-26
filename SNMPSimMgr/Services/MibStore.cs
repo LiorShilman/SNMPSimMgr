@@ -42,9 +42,9 @@ public class MibStore
                     LoadedOids[def.Oid] = def;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Skip if parsing fails entirely
+            System.Diagnostics.Debug.WriteLine($"MIB parse error: {ex.Message}");
         }
     }
 

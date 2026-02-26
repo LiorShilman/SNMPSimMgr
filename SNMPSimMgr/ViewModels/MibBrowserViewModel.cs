@@ -13,6 +13,7 @@ public partial class MibBrowserViewModel : ObservableObject
     private readonly DeviceProfileStore _store;
     private readonly DeviceListViewModel _deviceList;
     private readonly MibStore _mibStore;
+    private readonly MibPanelExportService _exportService;
     private List<SnmpRecord> _allRecords = new();
 
     public ObservableCollection<OidTreeNode> RootNodes { get; } = new();
@@ -27,15 +28,19 @@ public partial class MibBrowserViewModel : ObservableObject
     [ObservableProperty] private int _mibCount;
     [ObservableProperty] private string _mibStatus = string.Empty;
     [ObservableProperty] private bool _hasDevice;
+    [ObservableProperty] private string _exportStatus = string.Empty;
 
-    // Well-known OID names as fallback
+    // Well-known OID names as fallback when MIB files are not loaded
     private static readonly Dictionary<string, string> KnownOids = new()
     {
+        // Root hierarchy
         ["1.3"] = "org",
         ["1.3.6"] = "dod",
         ["1.3.6.1"] = "internet",
         ["1.3.6.1.2"] = "mgmt",
         ["1.3.6.1.2.1"] = "mib-2",
+
+        // system group (.1.3.6.1.2.1.1)
         ["1.3.6.1.2.1.1"] = "system",
         ["1.3.6.1.2.1.1.1"] = "sysDescr",
         ["1.3.6.1.2.1.1.2"] = "sysObjectID",
@@ -44,36 +49,122 @@ public partial class MibBrowserViewModel : ObservableObject
         ["1.3.6.1.2.1.1.5"] = "sysName",
         ["1.3.6.1.2.1.1.6"] = "sysLocation",
         ["1.3.6.1.2.1.1.7"] = "sysServices",
+
+        // interfaces group (.1.3.6.1.2.1.2)
         ["1.3.6.1.2.1.2"] = "interfaces",
         ["1.3.6.1.2.1.2.1"] = "ifNumber",
         ["1.3.6.1.2.1.2.2"] = "ifTable",
+        ["1.3.6.1.2.1.2.2.1"] = "ifEntry",
         ["1.3.6.1.2.1.2.2.1.1"] = "ifIndex",
         ["1.3.6.1.2.1.2.2.1.2"] = "ifDescr",
         ["1.3.6.1.2.1.2.2.1.3"] = "ifType",
+        ["1.3.6.1.2.1.2.2.1.4"] = "ifMtu",
         ["1.3.6.1.2.1.2.2.1.5"] = "ifSpeed",
         ["1.3.6.1.2.1.2.2.1.6"] = "ifPhysAddress",
         ["1.3.6.1.2.1.2.2.1.7"] = "ifAdminStatus",
         ["1.3.6.1.2.1.2.2.1.8"] = "ifOperStatus",
+        ["1.3.6.1.2.1.2.2.1.9"] = "ifLastChange",
         ["1.3.6.1.2.1.2.2.1.10"] = "ifInOctets",
+        ["1.3.6.1.2.1.2.2.1.11"] = "ifInUcastPkts",
+        ["1.3.6.1.2.1.2.2.1.12"] = "ifInNUcastPkts",
+        ["1.3.6.1.2.1.2.2.1.13"] = "ifInDiscards",
+        ["1.3.6.1.2.1.2.2.1.14"] = "ifInErrors",
+        ["1.3.6.1.2.1.2.2.1.15"] = "ifInUnknownProtos",
         ["1.3.6.1.2.1.2.2.1.16"] = "ifOutOctets",
+        ["1.3.6.1.2.1.2.2.1.17"] = "ifOutUcastPkts",
+        ["1.3.6.1.2.1.2.2.1.18"] = "ifOutNUcastPkts",
+        ["1.3.6.1.2.1.2.2.1.19"] = "ifOutDiscards",
+        ["1.3.6.1.2.1.2.2.1.20"] = "ifOutErrors",
+        ["1.3.6.1.2.1.2.2.1.21"] = "ifOutQLen",
+        ["1.3.6.1.2.1.2.2.1.22"] = "ifSpecific",
+
+        // at, ip, icmp, tcp, udp, snmp groups
         ["1.3.6.1.2.1.3"] = "at",
         ["1.3.6.1.2.1.4"] = "ip",
+        ["1.3.6.1.2.1.4.20"] = "ipAddrTable",
+        ["1.3.6.1.2.1.4.20.1"] = "ipAddrEntry",
+        ["1.3.6.1.2.1.4.20.1.1"] = "ipAdEntAddr",
+        ["1.3.6.1.2.1.4.20.1.2"] = "ipAdEntIfIndex",
+        ["1.3.6.1.2.1.4.20.1.3"] = "ipAdEntNetMask",
+        ["1.3.6.1.2.1.4.21"] = "ipRouteTable",
+        ["1.3.6.1.2.1.4.21.1"] = "ipRouteEntry",
+        ["1.3.6.1.2.1.4.21.1.1"] = "ipRouteDest",
+        ["1.3.6.1.2.1.4.21.1.7"] = "ipRouteNextHop",
         ["1.3.6.1.2.1.5"] = "icmp",
         ["1.3.6.1.2.1.6"] = "tcp",
         ["1.3.6.1.2.1.7"] = "udp",
         ["1.3.6.1.2.1.11"] = "snmp",
+        ["1.3.6.1.2.1.15"] = "bgp",
+        ["1.3.6.1.2.1.15.3"] = "bgpPeerTable",
+        ["1.3.6.1.2.1.15.3.1"] = "bgpPeerEntry",
+        ["1.3.6.1.2.1.15.3.1.2"] = "bgpPeerState",
+        ["1.3.6.1.2.1.15.3.1.7"] = "bgpPeerRemoteAs",
+        ["1.3.6.1.2.1.15.3.1.9"] = "bgpPeerLocalAs",
         ["1.3.6.1.2.1.25"] = "host",
+
+        // ifMIB / ifXTable (.1.3.6.1.2.1.31)
         ["1.3.6.1.2.1.31"] = "ifMIB",
+        ["1.3.6.1.2.1.31.1"] = "ifMIBObjects",
+        ["1.3.6.1.2.1.31.1.1"] = "ifXTable",
+        ["1.3.6.1.2.1.31.1.1.1"] = "ifXEntry",
+        ["1.3.6.1.2.1.31.1.1.1.1"] = "ifName",
+        ["1.3.6.1.2.1.31.1.1.1.6"] = "ifHCInOctets",
+        ["1.3.6.1.2.1.31.1.1.1.10"] = "ifHCOutOctets",
+        ["1.3.6.1.2.1.31.1.1.1.15"] = "ifHighSpeed",
+        ["1.3.6.1.2.1.31.1.1.1.18"] = "ifAlias",
+
+        // entity MIB (.1.3.6.1.2.1.47)
         ["1.3.6.1.2.1.47"] = "entityMIB",
+        ["1.3.6.1.2.1.47.1"] = "entityMIBObjects",
+        ["1.3.6.1.2.1.47.1.1"] = "entityPhysical",
+        ["1.3.6.1.2.1.47.1.1.1"] = "entPhysicalTable",
+        ["1.3.6.1.2.1.47.1.1.1.1"] = "entPhysicalEntry",
+        ["1.3.6.1.2.1.47.1.1.1.1.2"] = "entPhysicalDescr",
+        ["1.3.6.1.2.1.47.1.1.1.1.7"] = "entPhysicalName",
+        ["1.3.6.1.2.1.47.1.1.1.1.8"] = "entPhysicalHardwareRev",
+        ["1.3.6.1.2.1.47.1.1.1.1.11"] = "entPhysicalSerialNum",
+        ["1.3.6.1.2.1.47.1.1.1.1.13"] = "entPhysicalMfgName",
+
+        // private / enterprises
         ["1.3.6.1.4"] = "private",
         ["1.3.6.1.4.1"] = "enterprises",
+        ["1.3.6.1.4.1.9"] = "cisco",
+        ["1.3.6.1.4.1.9.9"] = "ciscoMgmt",
+        ["1.3.6.1.4.1.9.9.109"] = "ciscoProcessMIB",
+        ["1.3.6.1.4.1.9.9.109.1.1.1.1.3"] = "cpmCPUTotal1minRev",
+        ["1.3.6.1.4.1.9.9.109.1.1.1.1.4"] = "cpmCPUTotal5minRev",
+        ["1.3.6.1.4.1.9.9.48"] = "ciscoMemoryPoolMIB",
+        ["1.3.6.1.4.1.9.9.48.1.1.1.5"] = "ciscoMemoryPoolUsed",
+        ["1.3.6.1.4.1.9.9.48.1.1.1.6"] = "ciscoMemoryPoolFree",
+        ["1.3.6.1.4.1.41112"] = "ubiquiti",
+        ["1.3.6.1.4.1.41112.1.6"] = "uniFi",
+
+        // Trap OIDs
+        ["1.3.6.1.6"] = "snmpV2",
+        ["1.3.6.1.6.3"] = "snmpModules",
+        ["1.3.6.1.6.3.1"] = "snmpMIB",
+        ["1.3.6.1.6.3.1.1.5.3"] = "linkDown",
+        ["1.3.6.1.6.3.1.1.5.4"] = "linkUp",
+
+        // Super Device MIB (.1.3.6.1.4.1.99999)
+        ["1.3.6.1.4.1.99999"] = "superDevice",
+        ["1.3.6.1.4.1.99999.1"] = "sdInfo",
+        ["1.3.6.1.4.1.99999.2"] = "sdStatus",
+        ["1.3.6.1.4.1.99999.3"] = "sdConfig",
+        ["1.3.6.1.4.1.99999.4"] = "sdIfTable",
+        ["1.3.6.1.4.1.99999.5"] = "sdSensorTable",
+        ["1.3.6.1.4.1.99999.6"] = "sdUserTable",
+        ["1.3.6.1.4.1.99999.7"] = "sdVlanTable",
+        ["1.3.6.1.4.1.99999.8"] = "sdDioTable",
+        ["1.3.6.1.4.1.99999.10"] = "sdNotifications",
     };
 
-    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList, MibStore mibStore)
+    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList, MibStore mibStore, MibPanelExportService exportService)
     {
         _store = store;
         _deviceList = deviceList;
         _mibStore = mibStore;
+        _exportService = exportService;
 
         _deviceList.PropertyChanged += async (_, e) =>
         {
@@ -217,15 +308,30 @@ public partial class MibBrowserViewModel : ObservableObject
         // Collapse single-child chains for cleaner view
         foreach (var root in RootNodes)
             CollapseChains(root);
+
+        // Label table instance nodes with descriptive names (e.g., "FastEthernet0/1" instead of "1")
+        foreach (var root in RootNodes)
+            LabelTableInstances(root);
+
+        // Collapse scalar .0 instances — promote value to parent, remove the "0" child
+        foreach (var root in RootNodes)
+            CollapseScalarInstances(root);
     }
 
     private void CollapseChains(OidTreeNode node)
     {
         // If a node has exactly one child and no value, merge them
+        // BUT don't collapse when both have meaningful MIB names (e.g., sdIfTable → sdIfEntry)
         while (node.Children.Count == 1 && !node.IsLeaf)
         {
             var child = node.Children[0];
             if (child.IsLeaf) break;
+
+            // Don't collapse if both nodes have resolved MIB names (not just numbers)
+            bool nodeHasName = node.DisplayName != node.Segment && !int.TryParse(node.DisplayName, out _);
+            bool childHasName = child.DisplayName != child.Segment && !int.TryParse(child.DisplayName, out _);
+            if (nodeHasName && childHasName)
+                break;
 
             node.DisplayName = $"{node.DisplayName}.{child.DisplayName}";
             node.Oid = child.Oid;
@@ -237,6 +343,146 @@ public partial class MibBrowserViewModel : ObservableObject
 
         foreach (var child in node.Children)
             CollapseChains(child);
+    }
+
+    // Suffixes that indicate a "label" column for table instances
+    private static readonly string[] LabelColumnSuffixes =
+        { "Name", "Descr", "Alias", "Label", "Title" };
+
+    private void LabelTableInstances(OidTreeNode node)
+    {
+        // A "table entry" node has multiple children (columns),
+        // each column has children with numeric segments (instances)
+        if (node.Children.Count >= 2 && !node.IsLeaf)
+        {
+            var columns = node.Children;
+
+            // Check: do all children have LEAF children with numeric segments?
+            // Key: instances must be leaves (no further children) and more than 1
+            // — this distinguishes real tables (multiple rows) from scalar groups (single .0)
+            bool isTableEntry = columns.All(col =>
+                col.Children.Count > 1 &&
+                col.Children.All(inst => IsNumericSegment(inst.Segment) && inst.Children.Count == 0));
+
+            if (isTableEntry)
+            {
+                // Find label column: first check name suffix patterns, then fall back to first OctetString column
+                OidTreeNode? labelColumn = null;
+
+                // Priority 1: column whose name ends with Name/Descr/Alias (e.g., sdIfName, ifDescr, sdSensorName)
+                foreach (var col in columns)
+                {
+                    var displayName = col.DisplayName;
+                    foreach (var suffix in LabelColumnSuffixes)
+                    {
+                        if (displayName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) &&
+                            displayName.Length > suffix.Length) // not JUST "Name"
+                        {
+                            labelColumn = col;
+                            break;
+                        }
+                    }
+                    if (labelColumn != null) break;
+                }
+
+                // Priority 2: first column with OctetString leaf values (skip short MAC-like values)
+                if (labelColumn == null)
+                {
+                    foreach (var col in columns)
+                    {
+                        if (col.Children.Any(inst =>
+                            inst.IsLeaf &&
+                            inst.ValueType == "OctetString" &&
+                            !string.IsNullOrEmpty(inst.Value) &&
+                            inst.Value.Length > 2))
+                        {
+                            labelColumn = col;
+                            break;
+                        }
+                    }
+                }
+
+                // Remove instance children from columns — MIB tree shows Table → Entry → Columns only
+                // Instance data is visible in the flat records view
+                var instanceCount = columns[0].Children.Count;
+                foreach (var col in columns)
+                {
+                    col.Children.Clear();
+                    col.IsLeaf = true;
+                    col.Value = $"{instanceCount} instances";
+                }
+
+                return; // Don't recurse into table columns
+            }
+        }
+
+        // Recurse into children
+        foreach (var child in node.Children)
+            LabelTableInstances(child);
+    }
+
+    private void CollapseScalarInstances(OidTreeNode node)
+    {
+        // If node has exactly one child with segment "0" that is a leaf → it's a scalar .0 instance
+        // Promote the value to the parent and remove the child
+        if (node.Children.Count == 1 && node.Children[0].Segment == "0" && node.Children[0].IsLeaf)
+        {
+            var instance = node.Children[0];
+            node.Value = instance.Value;
+            node.ValueType = instance.ValueType;
+            node.IsLeaf = true;
+            node.Children.Clear();
+            return;
+        }
+
+        foreach (var child in node.Children)
+            CollapseScalarInstances(child);
+    }
+
+    private static bool IsNumericSegment(string segment)
+    {
+        // Simple numeric: "1", "26", etc.
+        if (int.TryParse(segment, out _)) return true;
+        // Multi-part instance index like "192.168.1.10" (IP-indexed tables)
+        // These were already split into separate tree levels, so just check for int
+        return false;
+    }
+
+    [RelayCommand]
+    private async Task ExportPanelSchema()
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null)
+        {
+            ExportStatus = "Select a device first.";
+            return;
+        }
+
+        if (_mibStore.LoadedOids.Count == 0)
+        {
+            ExportStatus = "Load MIB files first.";
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export Panel Schema JSON",
+            Filter = "JSON files (*.json)|*.json",
+            FileName = $"{device.Name}_panel_schema.json"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            ExportStatus = "Exporting...";
+            await _exportService.ExportToFileAsync(device, dialog.FileName);
+            ExportStatus = $"Exported {_mibStore.TotalDefinitions} fields to {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            ExportStatus = $"Export error: {ex.Message}";
+        }
     }
 
     [RelayCommand]

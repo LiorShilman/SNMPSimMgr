@@ -34,6 +34,10 @@
                     <Button Content="Load MIB" Command="{Binding LoadMibFileCommand}"
                             Style="{StaticResource AccentButton}" Padding="10,5" FontSize="11"
                             IsEnabled="{Binding HasDevice}"/>
+                    <!-- Export Panel JSON button -->
+                    <Button Content="Export Panel JSON" Command="{Binding ExportPanelSchemaCommand}"
+                            Padding="10,5" FontSize="11" Margin="4,0,0,0"
+                            IsEnabled="{Binding MibCount, Converter={StaticResource BoolToVisConverter}}"/>
                     <!-- MIB count badge -->
                     <Border Background="#2A3A2A" CornerRadius="10" Padding="8,4" Margin="4,0"
                             BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1"
@@ -110,6 +114,9 @@
                 <TextBlock Text="{Binding MibStatus}" FontSize="10" Margin="0,4,0,0"
                            Foreground="{StaticResource AccentGreenBrush}"
                            Visibility="{Binding MibStatus, Converter={StaticResource BoolToVisConverter}}"/>
+                <TextBlock Text="{Binding ExportStatus}" FontSize="10" Margin="0,2,0,0"
+                           Foreground="{StaticResource AccentBlueBrush}"
+                           Visibility="{Binding ExportStatus, Converter={StaticResource BoolToVisConverter}}"/>
             </StackPanel>
         </Border>
 

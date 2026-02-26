@@ -2,12 +2,30 @@ namespace SNMPSimMgr.Models;
 
 public class MibDefinition
 {
+    // Identity
     public string Name { get; set; } = string.Empty;
     public string Oid { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public string? Syntax { get; set; }
     public string? ParentName { get; set; }
     public int Index { get; set; }
+    public string? ModuleName { get; set; }
+
+    // MIB metadata
+    public string? Description { get; set; }
+    public string? Syntax { get; set; }
+    public string? Access { get; set; }
+    public string? Status { get; set; }
+    public string? Units { get; set; }
+    public string? DefVal { get; set; }
+    public string? DisplayHint { get; set; }
+    public string? IndexParts { get; set; }
+
+    // Parsed syntax breakdown
+    public string? BaseType { get; set; }
+    public int? RangeMin { get; set; }
+    public int? RangeMax { get; set; }
+    public int? SizeMin { get; set; }
+    public int? SizeMax { get; set; }
+    public Dictionary<string, int>? EnumValues { get; set; }
 }
 
 public class MibFileInfo

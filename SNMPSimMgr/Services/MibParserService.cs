@@ -51,9 +51,56 @@ public static class MibParserService
         @"DESCRIPTION\s*""([^""]*?)""",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
-    // SYNTAX extraction
+    // SYNTAX extraction — supports multi-line enum blocks like INTEGER { up(1), down(2) }
     private static readonly Regex SyntaxRegex = new(
-        @"SYNTAX\s+([\w\s\(\)\.\-]+?)(?:\r?\n\s*(?:MAX-ACCESS|ACCESS|STATUS|DESCRIPTION|INDEX|::=))",
+        @"SYNTAX\s+([\s\S]+?)(?:\r?\n\s*(?:MAX-ACCESS|ACCESS|STATUS|DESCRIPTION|INDEX|DEFVAL|::=))",
+        RegexOptions.Compiled);
+
+    // Rich metadata extraction
+    private static readonly Regex AccessRegex = new(
+        @"(?:MAX-ACCESS|ACCESS)\s+([\w-]+)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex StatusRegex = new(
+        @"STATUS\s+(\w+)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex UnitsRegex = new(
+        @"UNITS\s+""([^""]*)""",
+        RegexOptions.Compiled);
+
+    private static readonly Regex DefValRegex = new(
+        @"DEFVAL\s*\{\s*([^}]*)\s*\}",
+        RegexOptions.Compiled);
+
+    private static readonly Regex DisplayHintRegex = new(
+        @"DISPLAY-HINT\s+""([^""]*)""",
+        RegexOptions.Compiled);
+
+    private static readonly Regex IndexPartsRegex = new(
+        @"INDEX\s*\{\s*([^}]+)\s*\}",
+        RegexOptions.Compiled);
+
+    // Boundary: detects the start of the NEXT definition (to limit defRegion scope)
+    private static readonly Regex NextDefinitionRegex = new(
+        @"\n\s*\w[\w-]*\s+(?:OBJECT-TYPE|OBJECT IDENTIFIER|MODULE-IDENTITY|OBJECT-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP)\b",
+        RegexOptions.Compiled);
+
+    // Syntax sub-patterns
+    private static readonly Regex EnumValuesRegex = new(
+        @"\{\s*((?:\w[\w-]*\s*\(\s*-?\d+\s*\)\s*,?\s*)+)\}",
+        RegexOptions.Compiled);
+
+    private static readonly Regex SingleEnumRegex = new(
+        @"(\w[\w-]*)\s*\(\s*(-?\d+)\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex IntRangeRegex = new(
+        @"\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex SizeConstraintRegex = new(
+        @"SIZE\s*\(\s*(\d+)\s*\.\.\s*(\d+)\s*\)",
         RegexOptions.Compiled);
 
     // MODULE-IDENTITY or DEFINITIONS ::= BEGIN
@@ -147,18 +194,10 @@ public static class MibParserService
                     Index = index
                 };
 
-                // Extract DESCRIPTION and SYNTAX
-                var defStart = content.IndexOf($"{name} ", StringComparison.Ordinal);
-                if (defStart >= 0)
-                {
-                    var defRegion = content.Substring(defStart, Math.Min(3000, content.Length - defStart));
-                    var descMatch = DescriptionRegex.Match(defRegion);
-                    if (descMatch.Success)
-                        def.Description = descMatch.Groups[1].Value.Trim();
-                    var syntaxMatch = SyntaxRegex.Match(defRegion);
-                    if (syntaxMatch.Success)
-                        def.Syntax = syntaxMatch.Groups[1].Value.Trim();
-                }
+                // Extract all metadata
+                var defRegion = ExtractDefinitionRegion(content, name);
+                if (defRegion != null)
+                    ExtractMetadata(def, defRegion, moduleName);
 
                 definitions[oid] = def;
             }
@@ -220,17 +259,9 @@ public static class MibParserService
                 Index = index
             };
 
-            var defStart = content.IndexOf($"{name} ", StringComparison.Ordinal);
-            if (defStart >= 0)
-            {
-                var defRegion = content.Substring(defStart, Math.Min(3000, content.Length - defStart));
-                var descMatch = DescriptionRegex.Match(defRegion);
-                if (descMatch.Success)
-                    def.Description = descMatch.Groups[1].Value.Trim();
-                var syntaxMatch = SyntaxRegex.Match(defRegion);
-                if (syntaxMatch.Success)
-                    def.Syntax = syntaxMatch.Groups[1].Value.Trim();
-            }
+            var defRegion = ExtractDefinitionRegion(content, name);
+            if (defRegion != null)
+                ExtractMetadata(def, defRegion, result.ModuleName);
 
             definitions[oid] = def;
         }
@@ -272,6 +303,231 @@ public static class MibParserService
         }
 
         return rawAssignments;
+    }
+
+    /// <summary>
+    /// Extract all rich metadata from a definition region in the MIB source.
+    /// </summary>
+    private static void ExtractMetadata(MibDefinition def, string defRegion, string moduleName)
+    {
+        def.ModuleName = moduleName;
+
+        // Description
+        var descMatch = DescriptionRegex.Match(defRegion);
+        if (descMatch.Success)
+            def.Description = descMatch.Groups[1].Value.Trim();
+
+        // Syntax (raw)
+        var syntaxMatch = SyntaxRegex.Match(defRegion);
+        if (syntaxMatch.Success)
+            def.Syntax = syntaxMatch.Groups[1].Value.Trim();
+
+        // Access
+        var accessMatch = AccessRegex.Match(defRegion);
+        if (accessMatch.Success)
+            def.Access = accessMatch.Groups[1].Value;
+
+        // Status
+        var statusMatch = StatusRegex.Match(defRegion);
+        if (statusMatch.Success)
+            def.Status = statusMatch.Groups[1].Value;
+
+        // Units
+        var unitsMatch = UnitsRegex.Match(defRegion);
+        if (unitsMatch.Success)
+            def.Units = unitsMatch.Groups[1].Value;
+
+        // Default value
+        var defValMatch = DefValRegex.Match(defRegion);
+        if (defValMatch.Success)
+            def.DefVal = defValMatch.Groups[1].Value.Trim();
+
+        // Display hint
+        var hintMatch = DisplayHintRegex.Match(defRegion);
+        if (hintMatch.Success)
+            def.DisplayHint = hintMatch.Groups[1].Value;
+
+        // Index parts (for table entries)
+        var indexMatch = IndexPartsRegex.Match(defRegion);
+        if (indexMatch.Success)
+            def.IndexParts = indexMatch.Groups[1].Value.Trim();
+
+        // Parse syntax breakdown
+        ParseSyntaxDetails(def);
+    }
+
+    private static void ParseSyntaxDetails(MibDefinition def)
+    {
+        var syntax = def.Syntax;
+        if (string.IsNullOrEmpty(syntax)) return;
+
+        // Known direct types
+        var knownTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Counter32"] = "Counter32",
+            ["Counter64"] = "Counter64",
+            ["Gauge32"] = "Gauge32",
+            ["TimeTicks"] = "TimeTicks",
+            ["IpAddress"] = "IpAddress",
+            ["Opaque"] = "Opaque",
+            ["Unsigned32"] = "Unsigned32",
+            ["Integer32"] = "Integer32",
+        };
+
+        foreach (var kvp in knownTypes)
+        {
+            if (syntax.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                def.BaseType = kvp.Value;
+                // Check for range on these types too
+                var rangeMatch = IntRangeRegex.Match(syntax);
+                if (rangeMatch.Success)
+                {
+                    def.RangeMin = int.Parse(rangeMatch.Groups[1].Value);
+                    def.RangeMax = int.Parse(rangeMatch.Groups[2].Value);
+                }
+                return;
+            }
+        }
+
+        // INTEGER with enum values: INTEGER { up(1), down(2) }
+        if (syntax.StartsWith("INTEGER", StringComparison.OrdinalIgnoreCase))
+        {
+            def.BaseType = "INTEGER";
+
+            var enumMatch = EnumValuesRegex.Match(syntax);
+            if (enumMatch.Success)
+            {
+                def.EnumValues = new Dictionary<string, int>();
+                foreach (Match m in SingleEnumRegex.Matches(enumMatch.Groups[1].Value))
+                    def.EnumValues[m.Groups[1].Value] = int.Parse(m.Groups[2].Value);
+                return;
+            }
+
+            var rangeMatch = IntRangeRegex.Match(syntax);
+            if (rangeMatch.Success)
+            {
+                def.RangeMin = int.Parse(rangeMatch.Groups[1].Value);
+                def.RangeMax = int.Parse(rangeMatch.Groups[2].Value);
+            }
+            return;
+        }
+
+        // OCTET STRING with SIZE
+        if (syntax.IndexOf("OCTET STRING", StringComparison.OrdinalIgnoreCase) >= 0
+            || syntax.IndexOf("DisplayString", StringComparison.OrdinalIgnoreCase) >= 0
+            || syntax.IndexOf("SnmpAdminString", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            def.BaseType = "OCTET STRING";
+            var sizeMatch = SizeConstraintRegex.Match(syntax);
+            if (sizeMatch.Success)
+            {
+                def.SizeMin = int.Parse(sizeMatch.Groups[1].Value);
+                def.SizeMax = int.Parse(sizeMatch.Groups[2].Value);
+            }
+            return;
+        }
+
+        if (syntax.IndexOf("OBJECT IDENTIFIER", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            def.BaseType = "OBJECT IDENTIFIER";
+            return;
+        }
+
+        if (syntax.StartsWith("BITS", StringComparison.OrdinalIgnoreCase))
+        {
+            def.BaseType = "BITS";
+            var enumMatch = EnumValuesRegex.Match(syntax);
+            if (enumMatch.Success)
+            {
+                def.EnumValues = new Dictionary<string, int>();
+                foreach (Match m in SingleEnumRegex.Matches(enumMatch.Groups[1].Value))
+                    def.EnumValues[m.Groups[1].Value] = int.Parse(m.Groups[2].Value);
+            }
+            return;
+        }
+
+        // Textual conventions and other types — try to detect enum or range
+        def.BaseType = syntax.Split('(', '{', ' ')[0].Trim();
+        var enumFallback = EnumValuesRegex.Match(syntax);
+        if (enumFallback.Success)
+        {
+            def.EnumValues = new Dictionary<string, int>();
+            foreach (Match m in SingleEnumRegex.Matches(enumFallback.Groups[1].Value))
+                def.EnumValues[m.Groups[1].Value] = int.Parse(m.Groups[2].Value);
+        }
+        else
+        {
+            var rangeFallback = IntRangeRegex.Match(syntax);
+            if (rangeFallback.Success)
+            {
+                def.RangeMin = int.Parse(rangeFallback.Groups[1].Value);
+                def.RangeMax = int.Parse(rangeFallback.Groups[2].Value);
+            }
+            var sizeFallback = SizeConstraintRegex.Match(syntax);
+            if (sizeFallback.Success)
+            {
+                def.SizeMin = int.Parse(sizeFallback.Groups[1].Value);
+                def.SizeMax = int.Parse(sizeFallback.Groups[2].Value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Find the definition start for a name — skips occurrences inside SEQUENCE blocks.
+    /// Looks for "name OBJECT-TYPE", "name OBJECT IDENTIFIER", "name MODULE-IDENTITY", etc.
+    /// </summary>
+    /// <summary>
+    /// Extract the definition region for a name, bounded by the next definition start.
+    /// This prevents metadata leaking from one definition to another.
+    /// </summary>
+    private static string? ExtractDefinitionRegion(string content, string name)
+    {
+        var defStart = FindDefinitionStart(content, name);
+        if (defStart < 0) return null;
+
+        // Find the end: next definition boundary or max 3000 chars
+        var maxLen = Math.Min(3000, content.Length - defStart);
+        var region = content.Substring(defStart, maxLen);
+
+        // Look for the next definition keyword (skip the first line which IS this definition)
+        var nextDef = NextDefinitionRegex.Match(region, name.Length + 1);
+        if (nextDef.Success)
+            region = region.Substring(0, nextDef.Index);
+
+        return region;
+    }
+
+    private static int FindDefinitionStart(string content, string name)
+    {
+        var searchFor = $"{name} ";
+        int pos = 0;
+        while (pos < content.Length)
+        {
+            var idx = content.IndexOf(searchFor, pos, StringComparison.Ordinal);
+            if (idx < 0) return -1;
+
+            // Check: is this inside a SEQUENCE { ... } block?
+            // Look backwards for the nearest '{' or '}' to determine context
+            bool insideSequence = false;
+            var before = content.Substring(Math.Max(0, idx - 500), Math.Min(500, idx));
+            var lastSeqStart = before.LastIndexOf("SEQUENCE", StringComparison.Ordinal);
+            if (lastSeqStart >= 0)
+            {
+                var region = before.Substring(lastSeqStart);
+                // If there's a '{' after SEQUENCE but no matching '}' before our position, we're inside
+                int braceOpen = region.IndexOf('{');
+                int braceClose = region.LastIndexOf('}');
+                if (braceOpen >= 0 && (braceClose < 0 || braceClose < braceOpen))
+                    insideSequence = true;
+            }
+
+            if (!insideSequence)
+                return idx;
+
+            pos = idx + searchFor.Length;
+        }
+        return -1;
     }
 
     private static string StripComments(string content)

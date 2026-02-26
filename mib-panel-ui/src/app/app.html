@@ -1,0 +1,97 @@
+<div class="app-container">
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="logo-area">
+      <span class="logo-icon">&#9783;</span>
+      <span class="logo-text">MIB Panel</span>
+    </div>
+
+    @if (schema(); as s) {
+      <div class="device-info-mini">
+        <span class="device-name-mini">{{ s.deviceName }}</span>
+        <span class="device-detail">{{ s.totalFields }} fields</span>
+      </div>
+    }
+
+    <div class="top-actions">
+      <label class="btn-load">
+        <input type="file" accept=".json" (change)="onFileSelected($event)" hidden>
+        Load JSON
+      </label>
+      @if (schema()) {
+        <button type="button" class="btn-open-panel" (click)="isPanelOpen = true">
+          Open Panel &#9656;
+        </button>
+      }
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    @if (!schema()) {
+      <!-- Welcome / Drop Zone -->
+      <div class="welcome-zone"
+           (dragover)="onDragOver($event)"
+           (dragleave)="isDragging = false"
+           (drop)="onDrop($event)"
+           [class.dragging]="isDragging">
+        <div class="welcome-icon">&#9783;</div>
+        <h1>MIB Panel Viewer</h1>
+        <p>Load a Panel JSON file exported from SNMP SimManager</p>
+        <p class="hint">Drag &amp; drop a .json file here, or click the button below</p>
+        <label class="btn-load-big">
+          <input type="file" accept=".json" (change)="onFileSelected($event)" hidden>
+          Load Panel JSON
+        </label>
+      </div>
+    } @else {
+      <!-- Device Identity Card -->
+      @if (identity(); as id) {
+        <app-device-card
+          [identity]="id"
+          [community]="schema()!.community"
+          [snmpVersion]="schema()!.snmpVersion"
+          [port]="schema()!.devicePort" />
+      }
+
+      <!-- Module Sections -->
+      <div class="modules-grid">
+        @for (module of schema()!.modules; track module.moduleName) {
+          <app-module-section [module]="module" />
+        }
+      </div>
+
+      <!-- System Properties Footer -->
+      @if (systemInfo().length > 0) {
+        <app-system-info [items]="systemInfo()" />
+      }
+    }
+  </main>
+
+  <!-- Side Panel -->
+  <app-side-panel [isOpen]="isPanelOpen" (close)="isPanelOpen = false">
+    <div panel-header>
+      @if (identity(); as id) {
+        <div class="panel-title-area">
+          <div class="panel-device-name">{{ id.name }}</div>
+          <div class="panel-device-meta">{{ id.model }} &middot; {{ id.firmware }}</div>
+        </div>
+      }
+    </div>
+
+    @if (schema(); as s) {
+      <div class="panel-modules">
+        @for (module of s.modules; track module.moduleName) {
+          <app-module-section [module]="module" />
+        }
+      </div>
+
+      @if (systemInfo().length > 0) {
+        <app-system-info [items]="systemInfo()" />
+      }
+    }
+  </app-side-panel>
+
+  <!-- SET Feedback Toasts -->
+  <app-set-feedback />
+</div>

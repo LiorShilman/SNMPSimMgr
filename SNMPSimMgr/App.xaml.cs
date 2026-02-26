@@ -25,7 +25,8 @@ public partial class App : Application
         var simulatorVm = new SimulatorViewModel(store, trapGenerator, deviceListVm, recorder);
         var demoService = new DemoDataService(store);
         var monitorVm = new NetworkMonitorViewModel(simulatorVm);
-        var mibBrowserVm = new MibBrowserViewModel(store, deviceListVm, mibStore);
+        var mibExportService = new MibPanelExportService(mibStore, store);
+        var mibBrowserVm = new MibBrowserViewModel(store, deviceListVm, mibStore, mibExportService);
         var scenarioVm = new ScenarioViewModel(simulatorVm);
         var mainVm = new MainViewModel(deviceListVm, recorderVm, simulatorVm, demoService, monitorVm, mibBrowserVm, scenarioVm);
 

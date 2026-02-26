@@ -19,7 +19,7 @@
             <StackPanel>
                 <TextBlock Text="מדריך למשתמש" FontSize="22" FontWeight="Bold"
                            Foreground="#E8EAED"/>
-                <TextBlock Text="SNMP SimManager v1.1" FontSize="13"
+                <TextBlock Text="SNMP SimManager v1.4" FontSize="13"
                            Foreground="#8C95A6" FlowDirection="LeftToRight"
                            HorizontalAlignment="Right"/>
             </StackPanel>
@@ -182,7 +182,8 @@
                 <StackPanel Margin="16,0,0,16">
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
                         <Bold>עץ MIB:</Bold> מציג את כל ה-OIDs של המכשיר הנבחר כעץ היררכי.
-                        כל ענף ניתן לפתיחה, ו-OIDs עם ערכים מוצגים בירוק.
+                        Scalars מוצגים כעלים עם ערך ישיר. טבלאות מוצגות כ-Table → Entry → Columns
+                        (כל עמודה מציגה מספר instances). OIDs עם ערכים מוצגים בירוק.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
                         <Bold>חיפוש:</Bold> הקלד OID, שם, או ערך בשדה החיפוש — העץ יסומן
@@ -220,6 +221,159 @@
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
                         <Bold>Export/Import:</Bold> כשמייצאים Package, כל קבצי ה-MIB המשויכים
                         נכללים בקובץ .snmpsim ומשוחזרים אוטומטית בייבוא.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        Export Panel JSON (חדש!)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>Export Panel JSON:</Bold> מייצא קובץ JSON מפורט ומובנה לבניית ממשק UI אוטומטי.
+                        ה-JSON מחולק ל-Scalars (שדות בודדים כמו sysName) ו-Tables (טבלאות עם שורות ועמודות
+                        כמו ifTable) — מוכן להצגה ישירה כטפסים וגריד.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>שימוש:</Bold> טען קבצי MIB למכשיר ← לחץ "Export Panel JSON" ← בחר מיקום שמירה.
+                        הקובץ מוכן לשליחה דרך SignalR לאפליקציית Angular/Web לבניית פאנל ניהול מותאם אישית.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>מבנה ה-JSON:</Bold>
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • <Bold>Scalars:</Bold> כל שדה כולל OID, שם, תיאור, סוג גישה, סוג קלט, ערך נוכחי ומגבלות
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>Tables:</Bold> כל טבלה כוללת עמודות (columns) ושורות (rows) עם ערכים לכל תא,
+                        עמודת תיאור (label) ופענוח ערכי enum
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>מיפוי סוגי קלט:</Bold>
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • INTEGER עם enum → בחירה מתוך רשימה (dropdown)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • INTEGER עם טווח → שדה מספרי עם min/max
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • OCTET STRING → שדה טקסט עם maxLength
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Counter/Gauge/TimeTicks → תצוגת סטטוס (read-only)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • IpAddress → שדה כתובת IP
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>חד-חד ערכיות:</Bold> כל שדה ב-JSON ממופה ל-OID ייחודי אחד — ניתן לבצע
+                        GET ו-SET ישירות דרך ה-OID של כל שדה.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: MIB Panel UI -->
+                <TextBlock Text="MIB Panel UI — ממשק דשבורד אנגולר" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>MIB Panel Viewer:</Bold> אפליקציית Angular מקצועית שמציגה את ה-Panel JSON
+                        כדשבורד ויזואלי מרשים. טען את ה-JSON שיוצא מ-Export Panel JSON — האפליקציה
+                        מזהה אוטומטית את סוגי השדות ובונה ממשק מותאם.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        כרטיס מכשיר (Device Card)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        בראש הדף מוצג כרטיס זיהוי המכשיר עם שם, דגם, גרסת firmware,
+                        מספר סריאלי, כתובת IP, כתובת MAC וזמן פעילות (uptime) — כולם מזוהים
+                        אוטומטית מתוך השדות הסטנדרטיים ב-MIB.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        אזור ניטור (Monitoring)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        שדות סטטוס, counters ו-gauges מוצגים ככרטיסים צבעוניים עם פס שמאלי:
+                        ירוק = תקין, אדום = תקלה, כתום = אזהרה, כחול = מונה. ערכי enum מוצגים
+                        כ-pills עם צבע תואם. מונים מעוצבים בפורמט קריא (1.2M, 3.5G).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        אזור הגדרות (Configuration)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        שדות עם הרשאת כתיבה (read-write / read-create) מוצגים כטופס עריכה.
+                        לחיצה על ערך או על אייקון העט פותחת שדה עריכה מותאם:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • Enum → תפריט בחירה (dropdown)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Toggle (0/1) → מתג ON/OFF
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Number → שדה מספרי עם min/max
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • IP → שדה כתובת IP
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Text → שדה טקסט חופשי
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        לחיצה על "Save" שולחת את הערך החדש. הודעת אישור/שגיאה מופיעה כ-toast.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        טבלאות (Tables)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        טבלאות SNMP (כמו ifTable, sdUserTable) מוצגות כגריד עם עמודות ושורות.
+                        תאים הניתנים לעריכה מסומנים — לחיצה כפולה פותחת שדה עריכה בתוך התא.
+                        שמות עמודות מוצגים בפורמט קריא ללא OID.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        מאפייני מערכת (System Properties)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        בתחתית הדף מוצג פוטר מעוצב עם נתונים סטנדרטיים מה-MIB, מחולק ל-3 קטגוריות:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • <Bold>Identity</Bold> (סגול) — שם, תיאור, דגם, סריאלי, מספר slot
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>System</Bold> (ירוק) — firmware, hardware, uptime, contact, location
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>Network</Bold> (כחול) — IP, MAC, gateway, subnet, DNS, פורט SNMP, community
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        חלון צד (Side Panel)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        לחיצה על "Open Panel" פותחת חלון צד שנגלל מימין עם כל המידע —
+                        מודולים, ניטור, הגדרות, טבלאות ומאפייני מערכת — בתצוגה קומפקטית.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        טעינת קובץ
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        ניתן לטעון קובץ Panel JSON בשתי דרכים:
+                        לחיצה על "Load JSON" בסרגל העליון, או גרירת קובץ .json ישירות לאזור הראשי.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        הפעלה
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        האפליקציה נמצאת בתיקיית mib-panel-ui/. להפעלה:
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,6,0,0"
+                               FlowDirection="LeftToRight">
+                        cd mib-panel-ui
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,2,0,0"
+                               FlowDirection="LeftToRight">
+                        npm install
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,2,0,0"
+                               FlowDirection="LeftToRight">
+                        npx ng serve --open
                     </TextBlock>
                 </StackPanel>
 
@@ -285,7 +439,7 @@
                            Foreground="#FFAB00" Margin="0,0,0,8"/>
                 <StackPanel Margin="16,0,0,16">
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
-                        <Bold>Load Demo Data:</Bold> יוצר 3 מכשירי הדגמה עם נתוני SNMP Walk מוכנים:
+                        <Bold>Load Demo Data:</Bold> יוצר 4 מכשירי הדגמה עם נתוני SNMP Walk מוכנים:
                     </TextBlock>
                     <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
                         • Demo-Switch-Floor2 — סוויץ' עם 26 פורטים (~170 OIDs)
@@ -296,9 +450,13 @@
                     <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
                         • Demo-AP-Lobby — נקודת גישה WiFi עם 2.4/5GHz
                     </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • Super-Device-Lab — מכשיר מקיף עם MIB מותאם: 43 scalars, 5 טבלאות,
+                        כל סוגי הגישה, enums, DIO, חיישנים, משתמשים, VLANs ו-Traps
+                    </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
                         <Bold>Start All Simulators:</Bold> מפעיל סימולטורים לכל המכשירים
-                        (פורטים 10161-10163). ניתן מיד לבצע GET/SET/WALK דרך הממשק.
+                        (פורטים 10161-10164). ניתן מיד לבצע GET/SET/WALK דרך הממשק.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
                         Start &amp; Inject All (חדש!)
@@ -474,7 +632,7 @@
         <Border Grid.Row="2" Background="#232836" Padding="20,10"
                 BorderBrush="#3D4663" BorderThickness="0,1,0,0">
             <DockPanel>
-                <TextBlock Text="SNMP SimManager v1.1" Foreground="#8C95A6" FontSize="12"
+                <TextBlock Text="SNMP SimManager v1.4" Foreground="#8C95A6" FontSize="12"
                            VerticalAlignment="Center" FlowDirection="LeftToRight"/>
                 <Button Content="סגור" DockPanel.Dock="Left" HorizontalAlignment="Left"
                         Click="CloseButton_Click" MinWidth="80" Style="{StaticResource AccentButton}"/>

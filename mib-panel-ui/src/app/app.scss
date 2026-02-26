@@ -1,0 +1,199 @@
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+// ── Top Bar ──
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  height: 52px;
+  background: #1E2230;
+  border-bottom: 1px solid #2A3040;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-icon {
+  font-size: 20px;
+  color: #4C9AFF;
+}
+
+.logo-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #E8EAED;
+  letter-spacing: -0.5px;
+}
+
+.device-info-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid #2A3040;
+}
+
+.device-name-mini {
+  font-weight: 600;
+  font-size: 13px;
+  color: #FFAB00;
+}
+
+.device-detail {
+  font-size: 11px;
+  color: #5A6170;
+}
+
+.top-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.btn-load {
+  background: transparent;
+  border: 1px solid #3D4663;
+  color: #CDD1D8;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #232836;
+    border-color: #4C9AFF;
+    color: #4C9AFF;
+  }
+}
+
+.btn-open-panel {
+  background: #4C9AFF;
+  border: none;
+  color: #fff;
+  padding: 5px 18px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover { background: #79B8FF; }
+}
+
+// ── Main Content ──
+.main-content {
+  flex: 1;
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// ── Welcome Zone ──
+.welcome-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  border: 2px dashed #2A3040;
+  border-radius: 16px;
+  padding: 48px;
+  text-align: center;
+  transition: all 0.3s;
+
+  &.dragging {
+    border-color: #4C9AFF;
+    background: rgba(76, 154, 255, 0.06);
+  }
+
+  .welcome-icon {
+    font-size: 56px;
+    color: #3D4663;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #E8EAED;
+    margin: 0 0 6px;
+  }
+
+  p {
+    color: #8C95A6;
+    font-size: 14px;
+    margin: 0 0 4px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #5A6170;
+    margin-bottom: 24px;
+  }
+}
+
+.btn-load-big {
+  background: #4C9AFF;
+  border: none;
+  color: #fff;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #79B8FF;
+    transform: translateY(-1px);
+  }
+}
+
+// ── Modules Grid ──
+.modules-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// ── Side Panel Content ──
+.panel-title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panel-device-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #FFAB00;
+}
+
+.panel-device-meta {
+  font-size: 12px;
+  color: #8C95A6;
+  font-family: 'Consolas', monospace;
+}
+
+.panel-modules {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
