@@ -224,9 +224,33 @@ public partial class MibBrowserViewModel : ObservableObject
 
         _allRecords = await _store.LoadWalkDataAsync(device);
         LoadedDeviceName = device.Name;
+
+        // If no walk data but MIB definitions exist, generate records from MIB OIDs
+        // so Tree and Flat views show the MIB structure
+        if (_allRecords.Count == 0 && _mibStore.TotalDefinitions > 0)
+            _allRecords = GenerateMibRecords();
+
         TotalOids = _allRecords.Count;
         BuildTree(_allRecords);
         ApplyFilter();
+    }
+
+    /// <summary>
+    /// When no Walk data exists, create records from MIB definitions
+    /// so Tree and Flat views show the MIB structure.
+    /// </summary>
+    private List<SnmpRecord> GenerateMibRecords()
+    {
+        return _mibStore.LoadedOids.Values
+            .OrderBy(d => d.Oid, StringComparer.Ordinal)
+            .Select(d => new SnmpRecord
+            {
+                Oid = d.Oid,
+                Name = d.Name,
+                Value = d.Description ?? "—",
+                ValueType = d.Access ?? d.BaseType ?? "MIB"
+            })
+            .ToList();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -910,11 +934,16 @@ public partial class MibBrowserViewModel : ObservableObject
             await _mibStore.LoadForDeviceAsync(device);
             MibCount = _mibStore.TotalDefinitions;
 
-            if (_allRecords.Count > 0)
-            {
-                BuildTree(_allRecords);
-                ApplyFilter();
-            }
+            // Regenerate MIB-based records if no walk data
+            var walkRecords = await _store.LoadWalkDataAsync(device);
+            if (walkRecords.Count > 0)
+                _allRecords = walkRecords;
+            else if (_mibStore.TotalDefinitions > 0)
+                _allRecords = GenerateMibRecords();
+
+            TotalOids = _allRecords.Count;
+            BuildTree(_allRecords);
+            ApplyFilter();
 
             // Rebuild panel if currently visible
             if (ShowPanel)
@@ -960,11 +989,18 @@ public partial class MibBrowserViewModel : ObservableObject
         MibCount = _mibStore.TotalDefinitions;
         MibStatus = $"Removed {moduleName} — {_mibStore.TotalDefinitions} definitions remaining";
 
-        if (_allRecords.Count > 0)
-        {
-            BuildTree(_allRecords);
-            ApplyFilter();
-        }
+        // Regenerate records from remaining MIBs or walk data
+        var walkRecords = await _store.LoadWalkDataAsync(device);
+        if (walkRecords.Count > 0)
+            _allRecords = walkRecords;
+        else if (_mibStore.TotalDefinitions > 0)
+            _allRecords = GenerateMibRecords();
+        else
+            _allRecords = new List<SnmpRecord>();
+
+        TotalOids = _allRecords.Count;
+        BuildTree(_allRecords);
+        ApplyFilter();
 
         // Rebuild panel if currently visible, or clear stale data
         if (ShowPanel && _mibStore.TotalDefinitions > 0)
