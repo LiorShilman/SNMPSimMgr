@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Data;
 using System.IO;
+using System.Text.RegularExpressions;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -14,6 +17,7 @@ public partial class MibBrowserViewModel : ObservableObject
     private readonly DeviceListViewModel _deviceList;
     private readonly MibStore _mibStore;
     private readonly MibPanelExportService _exportService;
+    private readonly SnmpRecorderService _recorder;
     private List<SnmpRecord> _allRecords = new();
 
     public ObservableCollection<OidTreeNode> RootNodes { get; } = new();
@@ -29,6 +33,25 @@ public partial class MibBrowserViewModel : ObservableObject
     [ObservableProperty] private string _mibStatus = string.Empty;
     [ObservableProperty] private bool _hasDevice;
     [ObservableProperty] private string _exportStatus = string.Empty;
+
+    // Panel mode properties
+    [ObservableProperty] private bool _showPanel;
+    [ObservableProperty] private MibPanelSchema? _panelSchema;
+    [ObservableProperty] private string _panelStatus = string.Empty;
+    [ObservableProperty] private bool _isPanelLoading;
+
+    // Auto-refresh
+    [ObservableProperty] private bool _autoRefreshEnabled;
+    [ObservableProperty] private int _autoRefreshInterval = 5; // seconds
+    private DispatcherTimer? _autoRefreshTimer;
+    private bool _isRefreshing;
+
+    // Panel field classification lists (for UI binding)
+    public ObservableCollection<MibFieldSchema> IdentityFields { get; } = new();
+    public ObservableCollection<MibFieldSchema> MonitorFields { get; } = new();
+    public ObservableCollection<MibFieldSchema> ConfigFields { get; } = new();
+    public ObservableCollection<SystemInfoItem> SystemInfoItems { get; } = new();
+    public ObservableCollection<PanelTableItem> PanelTables { get; } = new();
 
     // Well-known OID names as fallback when MIB files are not loaded
     private static readonly Dictionary<string, string> KnownOids = new()
@@ -159,12 +182,13 @@ public partial class MibBrowserViewModel : ObservableObject
         ["1.3.6.1.4.1.99999.10"] = "sdNotifications",
     };
 
-    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList, MibStore mibStore, MibPanelExportService exportService)
+    public MibBrowserViewModel(DeviceProfileStore store, DeviceListViewModel deviceList, MibStore mibStore, MibPanelExportService exportService, SnmpRecorderService recorder)
     {
         _store = store;
         _deviceList = deviceList;
         _mibStore = mibStore;
         _exportService = exportService;
+        _recorder = recorder;
 
         _deviceList.PropertyChanged += async (_, e) =>
         {
@@ -488,7 +512,345 @@ public partial class MibBrowserViewModel : ObservableObject
     [RelayCommand]
     private void ToggleView()
     {
-        ShowTree = !ShowTree;
+        if (ShowTree)
+        {
+            // Tree → Flat
+            ShowTree = false;
+            ShowPanel = false;
+        }
+        else if (!ShowPanel)
+        {
+            // Flat → Panel
+            ShowTree = false;
+            ShowPanel = true;
+            if (PanelSchema == null && _mibStore.TotalDefinitions > 0)
+                _ = BuildPanel();
+        }
+        else
+        {
+            // Panel → Tree
+            ShowTree = true;
+            ShowPanel = false;
+            AutoRefreshEnabled = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task BuildPanel()
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null)
+        {
+            PanelStatus = "Select a device first.";
+            return;
+        }
+
+        if (_mibStore.TotalDefinitions == 0)
+        {
+            PanelStatus = "Load MIB files first.";
+            return;
+        }
+
+        try
+        {
+            IsPanelLoading = true;
+            PanelStatus = "Building panel schema...";
+
+            PanelSchema = await _exportService.BuildSchemaAsync(device);
+
+            ClassifyFields(PanelSchema);
+
+            PanelStatus = $"Panel loaded — {PanelSchema.TotalFields} fields from {PanelSchema.Modules.Count} modules";
+        }
+        catch (Exception ex)
+        {
+            PanelStatus = $"Panel error: {ex.Message}";
+        }
+        finally
+        {
+            IsPanelLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task PanelRefresh()
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null || PanelSchema == null) return;
+
+        try
+        {
+            IsPanelLoading = true;
+            PanelStatus = "Refreshing values...";
+
+            // Collect all scalar OIDs with .0 suffix
+            var scalarOids = PanelSchema.Modules
+                .SelectMany(m => m.Scalars)
+                .Select(f => f.Oid.EndsWith(".0") ? f.Oid : f.Oid + ".0")
+                .ToList();
+
+            if (scalarOids.Count > 0)
+            {
+                // Batch GET in groups of 20 (SNMP packet size limit)
+                var allResults = new List<SnmpRecord>();
+                for (int i = 0; i < scalarOids.Count; i += 20)
+                {
+                    var batch = scalarOids.Skip(i).Take(20);
+                    var results = await _recorder.GetMultipleAsync(device, batch);
+                    allResults.AddRange(results);
+                }
+
+                // Update field values
+                var lookup = allResults.ToDictionary(r => r.Oid, r => r);
+                foreach (var module in PanelSchema.Modules)
+                {
+                    foreach (var field in module.Scalars)
+                    {
+                        var oid = field.Oid.EndsWith(".0") ? field.Oid : field.Oid + ".0";
+                        if (lookup.TryGetValue(oid, out var record))
+                        {
+                            field.CurrentValue = record.Value;
+                            field.CurrentValueType = record.ValueType;
+                        }
+                    }
+                }
+
+                // Re-classify to update UI collections
+                ClassifyFields(PanelSchema);
+            }
+
+            PanelStatus = $"Refreshed {scalarOids.Count} values";
+        }
+        catch (Exception ex)
+        {
+            PanelStatus = $"Refresh error: {ex.Message}";
+        }
+        finally
+        {
+            IsPanelLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task PanelSetField(MibFieldSchema? field)
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null || field == null) return;
+
+        try
+        {
+            var oid = field.Oid.EndsWith(".0") ? field.Oid : field.Oid + ".0";
+            var valueType = field.CurrentValueType ?? field.BaseType;
+            var value = field.CurrentValue ?? "";
+
+            PanelStatus = $"Setting {field.Name}...";
+
+            var success = await _recorder.SetAsync(device, oid, value, valueType);
+
+            if (success)
+            {
+                PanelStatus = $"Set {FriendlyName(field.Name)} = {value}";
+            }
+            else
+            {
+                PanelStatus = $"SET failed for {field.Name} — device may not support writes";
+            }
+        }
+        catch (Exception ex)
+        {
+            PanelStatus = $"SET error: {ex.Message}";
+        }
+    }
+
+    // ── Auto-Refresh ──
+
+    partial void OnAutoRefreshEnabledChanged(bool value)
+    {
+        if (value)
+            StartAutoRefresh();
+        else
+            StopAutoRefresh();
+    }
+
+    partial void OnAutoRefreshIntervalChanged(int value)
+    {
+        if (_autoRefreshTimer != null && AutoRefreshEnabled)
+        {
+            _autoRefreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(value, 2));
+        }
+    }
+
+    private void StartAutoRefresh()
+    {
+        StopAutoRefresh();
+        _autoRefreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(Math.Max(AutoRefreshInterval, 2))
+        };
+        _autoRefreshTimer.Tick += AutoRefreshTick;
+        _autoRefreshTimer.Start();
+        PanelStatus = $"Auto-refresh ON — every {AutoRefreshInterval}s";
+    }
+
+    private void StopAutoRefresh()
+    {
+        if (_autoRefreshTimer != null)
+        {
+            _autoRefreshTimer.Stop();
+            _autoRefreshTimer.Tick -= AutoRefreshTick;
+            _autoRefreshTimer = null;
+        }
+    }
+
+    private async void AutoRefreshTick(object? sender, EventArgs e)
+    {
+        if (_isRefreshing || PanelSchema == null) return;
+        _isRefreshing = true;
+        try
+        {
+            await PanelRefresh();
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    // ── Field Classification ──
+
+    private static readonly Regex IdentityPattern = new(
+        @"(Name|Descr|Model|Firmware|FwVer|HwVer|Serial|MAC|mac|Version|Vendor|Manufacturer|Contact|Location)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex MonitorPattern = new(
+        @"(Status|State|Oper|Admin|Temp|Temperature|Voltage|Current|Power|Fan|Speed|Load|Cpu|Memory|Uptime|Counter|Octets|Packets|Errors|Discards|Rate|Utilization|Health|Alarm|Sensor|Gauge)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SystemPattern = new(
+        @"^sys(Descr|ObjectID|UpTime|Contact|Name|Location|Services|ORLastChange)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private void ClassifyFields(MibPanelSchema schema)
+    {
+        IdentityFields.Clear();
+        MonitorFields.Clear();
+        ConfigFields.Clear();
+        SystemInfoItems.Clear();
+
+        foreach (var module in schema.Modules)
+        {
+            foreach (var field in module.Scalars)
+            {
+                if (SystemPattern.IsMatch(field.Name))
+                {
+                    SystemInfoItems.Add(new SystemInfoItem
+                    {
+                        Label = FriendlyName(field.Name),
+                        Value = field.CurrentValue ?? "—",
+                        Category = field.Name.IndexOf("Contact", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                   field.Name.IndexOf("Location", StringComparison.OrdinalIgnoreCase) >= 0
+                                   ? "network" : "system"
+                    });
+                }
+                else if (field.IsWritable)
+                {
+                    ConfigFields.Add(field);
+                }
+                else if (IdentityPattern.IsMatch(field.Name) && !field.IsWritable)
+                {
+                    IdentityFields.Add(field);
+                }
+                else
+                {
+                    MonitorFields.Add(field);
+                }
+            }
+        }
+
+        // Add connection info to system info
+        SystemInfoItems.Add(new SystemInfoItem { Label = "IP Address", Value = schema.DeviceIp, Category = "network" });
+        SystemInfoItems.Add(new SystemInfoItem { Label = "Port", Value = schema.DevicePort.ToString(), Category = "network" });
+        SystemInfoItems.Add(new SystemInfoItem { Label = "Community", Value = schema.Community, Category = "network" });
+        SystemInfoItems.Add(new SystemInfoItem { Label = "SNMP Version", Value = schema.SnmpVersion, Category = "identity" });
+
+        // Build DataTables for each SNMP table
+        PanelTables.Clear();
+        foreach (var module in schema.Modules)
+        {
+            foreach (var table in module.Tables)
+            {
+                var dt = new DataTable();
+
+                // First column: row label/index
+                dt.Columns.Add("Name", typeof(string));
+
+                // Add a column for each table column (use friendly names)
+                var colMap = new List<(string Oid, string Header)>();
+                foreach (var col in table.Columns)
+                {
+                    var header = FriendlyName(col.Name);
+                    // Avoid duplicate column names
+                    var uniqueHeader = header;
+                    int suffix = 2;
+                    while (dt.Columns.Contains(uniqueHeader))
+                        uniqueHeader = $"{header} {suffix++}";
+                    dt.Columns.Add(uniqueHeader, typeof(string));
+                    colMap.Add((col.Oid, uniqueHeader));
+                }
+
+                // Add data rows
+                foreach (var row in table.Rows)
+                {
+                    var dr = dt.NewRow();
+                    dr["Name"] = row.Label ?? row.Index;
+                    foreach (var (oid, header) in colMap)
+                    {
+                        if (row.Values.TryGetValue(oid, out var cell))
+                            dr[header] = cell.EnumLabel ?? cell.Value;
+                    }
+                    dt.Rows.Add(dr);
+                }
+
+                PanelTables.Add(new PanelTableItem
+                {
+                    Name = FriendlyName(table.Name),
+                    RowCount = table.RowCount,
+                    ColumnCount = table.ColumnCount,
+                    Data = dt.DefaultView,
+                    SourceTable = table
+                });
+            }
+        }
+
+        OnPropertyChanged(nameof(IdentityFields));
+        OnPropertyChanged(nameof(MonitorFields));
+        OnPropertyChanged(nameof(ConfigFields));
+        OnPropertyChanged(nameof(SystemInfoItems));
+        OnPropertyChanged(nameof(PanelTables));
+    }
+
+    public static string FriendlyName(string name)
+    {
+        // Strip common prefixes
+        var clean = Regex.Replace(name, @"^(sd|sys|if|ent|cpm|cisco)", "", RegexOptions.IgnoreCase);
+        if (string.IsNullOrEmpty(clean)) clean = name;
+        // Add spaces between camelCase
+        clean = Regex.Replace(clean, @"([a-z])([A-Z])", "$1 $2");
+        clean = Regex.Replace(clean, @"([A-Z]+)([A-Z][a-z])", "$1 $2");
+        // Capitalize first letter
+        if (clean.Length > 0)
+            clean = char.ToUpper(clean[0]) + clean.Substring(1);
+        return clean;
+    }
+
+    public string GetEnumLabel(MibFieldSchema field)
+    {
+        if (field.Options != null && int.TryParse(field.CurrentValue, out var intVal))
+        {
+            var match = field.Options.FirstOrDefault(o => o.Value == intVal);
+            if (match != null) return match.Label;
+        }
+        return field.CurrentValue ?? "—";
     }
 
     [RelayCommand]
@@ -646,4 +1008,20 @@ public partial class OidTreeNode : ObservableObject
 
     private static string TruncateValue(string val, int max) =>
         val.Length > max ? val[..max] + "..." : val;
+}
+
+public class SystemInfoItem
+{
+    public string Label { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public string Category { get; set; } = "system"; // identity, system, network
+}
+
+public class PanelTableItem
+{
+    public string Name { get; set; } = string.Empty;
+    public int RowCount { get; set; }
+    public int ColumnCount { get; set; }
+    public DataView? Data { get; set; }
+    public MibTableSchema? SourceTable { get; set; }
 }

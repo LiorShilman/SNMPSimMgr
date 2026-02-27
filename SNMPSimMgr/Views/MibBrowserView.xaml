@@ -1,7 +1,8 @@
 <UserControl x:Class="SNMPSimMgr.Views.MibBrowserView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:SNMPSimMgr.ViewModels">
+             xmlns:vm="clr-namespace:SNMPSimMgr.ViewModels"
+             xmlns:views="clr-namespace:SNMPSimMgr.Views">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -73,6 +74,10 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="6,4"/>
+                    <!-- Refresh button (Panel mode) -->
+                    <Button Content="&#x1F504; Refresh" Command="{Binding PanelRefreshCommand}"
+                            Padding="10,5" FontSize="11" Style="{StaticResource AccentButton}"
+                            Visibility="{Binding ShowPanel, Converter={StaticResource BoolToVisConverter}}"/>
                     <Button Content="Expand All" Command="{Binding ExpandAllCommand}"
                             Padding="10,5" FontSize="11"
                             Visibility="{Binding ShowTree, Converter={StaticResource BoolToVisConverter}}"/>
@@ -84,9 +89,19 @@
                     <Button Command="{Binding ToggleViewCommand}" Padding="10,5" FontSize="11">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <!-- Default (Tree mode): show Flat View button -->
                                 <Setter Property="Content" Value="&#x1F4CB; Flat View"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowTree}" Value="False">
+                                    <!-- Flat mode (not tree, not panel): show Panel View button -->
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding ShowTree}" Value="False"/>
+                                            <Condition Binding="{Binding ShowPanel}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Content" Value="&#x1F4CA; Panel View"/>
+                                    </MultiDataTrigger>
+                                    <!-- Panel mode: show Tree View button -->
+                                    <DataTrigger Binding="{Binding ShowPanel}" Value="True">
                                         <Setter Property="Content" Value="&#x1F333; Tree View"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -117,6 +132,9 @@
                 <TextBlock Text="{Binding ExportStatus}" FontSize="10" Margin="0,2,0,0"
                            Foreground="{StaticResource AccentBlueBrush}"
                            Visibility="{Binding ExportStatus, Converter={StaticResource BoolToVisConverter}}"/>
+                <TextBlock Text="{Binding PanelStatus}" FontSize="10" Margin="0,2,0,0"
+                           Foreground="{StaticResource AccentOrangeBrush}"
+                           Visibility="{Binding PanelStatus, Converter={StaticResource BoolToVisConverter}}"/>
             </StackPanel>
         </Border>
 
@@ -204,7 +222,7 @@
                     </TreeView.ItemTemplate>
                 </TreeView>
 
-                <!-- Flat DataGrid view -->
+                <!-- Flat DataGrid view (visible when NOT tree AND NOT panel) -->
                 <DataGrid ItemsSource="{Binding FlatRecords}" AutoGenerateColumns="False"
                           IsReadOnly="True" BorderThickness="0"
                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11">
@@ -212,9 +230,13 @@
                         <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowTree}" Value="False">
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ShowTree}" Value="False"/>
+                                        <Condition Binding="{Binding ShowPanel}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </DataGrid.Style>
@@ -224,6 +246,10 @@
                         <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="4*"/>
                     </DataGrid.Columns>
                 </DataGrid>
+
+                <!-- Panel View -->
+                <views:MibPanelView DataContext="{Binding}"
+                                    Visibility="{Binding ShowPanel, Converter={StaticResource BoolToVisConverter}}"/>
 
                 <!-- Empty state -->
                 <TextBlock Text="Select a device in DEVICES tab to browse its MIB data"
