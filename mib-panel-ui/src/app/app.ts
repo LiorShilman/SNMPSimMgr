@@ -8,10 +8,11 @@ import { SetFeedbackComponent } from './components/set-feedback/set-feedback.com
 import { DeviceCardComponent } from './components/device-card/device-card.component';
 import { SystemInfoComponent } from './components/system-info/system-info.component';
 import { ConnectionStatusComponent } from './components/connection-status/connection-status.component';
+import { HelpGuideComponent } from './components/help-guide/help-guide.component';
 
 @Component({
   selector: 'app-root',
-  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent, ConnectionStatusComponent],
+  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent, ConnectionStatusComponent, HelpGuideComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -32,6 +33,7 @@ export class App {
   });
 
   isPanelOpen = false;
+  isGuideOpen = false;
   isDragging = false;
 
   constructor() {

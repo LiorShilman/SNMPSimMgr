@@ -19,7 +19,7 @@
             <StackPanel>
                 <TextBlock Text="מדריך למשתמש" FontSize="22" FontWeight="Bold"
                            Foreground="#E8EAED"/>
-                <TextBlock Text="SNMP SimManager v1.4" FontSize="13"
+                <TextBlock Text="SNMP SimManager v1.5" FontSize="13"
                            Foreground="#8C95A6" FlowDirection="LeftToRight"
                            HorizontalAlignment="Right"/>
             </StackPanel>
@@ -379,6 +379,151 @@
 
                 <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
 
+                <!-- Section: SignalR Communication -->
+                <TextBlock Text="SignalR — תקשורת בזמן אמת" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>חיבור דו-כיווני:</Bold> המערכת משתמשת ב-SignalR 2.0 לתקשורת בזמן אמת
+                        בין אפליקציית WPF לאפליקציית Angular. שרת SignalR רץ על פורט 5050
+                        ומאפשר שליחה וקבלה של נתונים בשני הכיוונים.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        הפעלת שרת SignalR
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        השרת מופעל אוטומטית עם הפעלת האפליקציה. סטטוס החיבור מוצג
+                        בלשונית Simulator (ירוק = פעיל, אדום = כבוי). כתובת ברירת מחדל:
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,6,0,0"
+                               FlowDirection="LeftToRight">
+                        http://localhost:5050/signalr
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        WPF → Angular (Push)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        כאשר הסימולטור פעיל, כל תעבורת SNMP (GET/SET/WALK/TRAP) נשלחת
+                        אוטומטית ל-Angular. אפליקציית הפאנל מתעדכנת בזמן אמת — ערכים
+                        משתנים ישירות על המסך ללא רענון.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        Angular → WPF (SET)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        כאשר המשתמש עורך ערך בפאנל Angular ולוחץ "Save", הערך נשלח
+                        דרך SignalR ל-WPF שמבצע SNMP SET על הסימולטור. תוצאת ה-SET
+                        חוזרת כ-Toast בממשק Angular.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        בחירת מכשיר מרחוק
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        כאשר Angular מחובר, תפריט "Select Device" מציג את כל המכשירים
+                        עם Walk. בחירת מכשיר טוענת את ה-Panel Schema ומתחילה עדכון בזמן אמת.
+                        כפתור Refresh מבצע סנכרון מלא של כל הערכים.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: IDD Panel -->
+                <TextBlock Text="IDD Panel — תמיכה במכשירים שאינם SNMP" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>מהו IDD?</Bold> Interface Design Document — פרוטוקול תקשורת מותאם אישית
+                        עם חומרה (לא SNMP). המערכת תומכת בהצגה ועריכה של שדות IDD
+                        באותו ממשק פאנל כמו SNMP, באמצעות אותו פורמט JSON.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        מבנה JSON של IDD
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        קובץ IDD Panel JSON משתמש באותו פורמט כמו MIB Panel, אבל עם שדות שונים:
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • <Bold>oid</Bold> — מזהה ייחודי (טקסטואלי, למשל "idd.net.ip" — לא מספרי)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>inputType</Bold> — סוג שדה: text, number, enum, toggle, ip
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>isWritable</Bold> — true/false לפי הרשאת שדה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • <Bold>currentValue</Bold> — ערך נוכחי
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,8,0,0">
+                        <Bold>דוגמה:</Bold> קובץ דוגמה נמצא בתיקייה:
+                    </TextBlock>
+                    <TextBlock Foreground="#8BB8D0" FontFamily="Consolas" FontSize="12" Margin="24,6,0,0"
+                               FlowDirection="LeftToRight">
+                        mib-panel-ui/public/assets/examples/idd-panel-example.json
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        עריכת שדות IDD
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        שדות IDD הניתנים לעריכה (isWritable=true) מתנהגים בדיוק כמו שדות SNMP —
+                        לחיצה על הערך פותחת שדה עריכה מותאם. הערך נשלח דרך SignalR
+                        לאפליקציית WPF שמטפלת בתקשורת מול החומרה.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        הבדלים מ-SNMP
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,4,0,0">
+                        • מזהה השדה (oid) מתחיל באות ולא בספרה → זיהוי אוטומטי כ-IDD
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • ללא סיומת .0 אוטומטית (כמו ב-SNMP scalars)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" Margin="24,2,0,0">
+                        • פקודת SET עוברת דרך SendIddSet (לא SendSet)
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
+                <!-- Section: IDD Simulator -->
+                <TextBlock Text="סימולציית IDD — עדכון שדות מ-WPF" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>IDD Simulate:</Bold> אזור ייעודי בלשונית Simulator לסימולציית שדות IDD.
+                        מאפשר טעינת קובץ IDD Panel JSON, בחירת שדה, שינוי ערך ושליחת עדכון
+                        לאפליקציית Angular בזמן אמת.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        שלבי השימוש
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">1.</Bold>  לחץ "Load IDD JSON" ובחר קובץ Panel JSON (MIB או IDD)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">2.</Bold>  רשימת השדות נטענת ל-ComboBox עם שם המודול, שם השדה ומזהה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">3.</Bold>  בחר שדה מהרשימה — המזהה והערך הנוכחי ממולאים אוטומטית
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">4.</Bold>  שנה את הערך בשדה Value
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">5.</Bold>  לחץ "Broadcast" — הערך נשלח דרך SignalR ל-Angular
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,8,0,0">
+                        <Bold>תוצאה:</Bold> הפאנל ב-Angular מתעדכן מיידית — ניתן לראות את הערך
+                        החדש בשדה המתאים ללא רענון דף.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#8C95A6" FontSize="12" LineHeight="20" Margin="0,8,0,0">
+                        טיפ: ניתן לטעון את אותו קובץ JSON גם ב-Angular (Load JSON) וגם ב-WPF
+                        (Load IDD JSON) — כך אפשר לסמלץ שינויים ולראות את התוצאה בזמן אמת.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
                 <!-- Section: Scenario Builder -->
                 <TextBlock Text="לשונית SCENARIOS — בניית תרחישים" FontSize="15" FontWeight="Bold"
                            Foreground="#4C9AFF" Margin="0,0,0,8"/>
@@ -632,7 +777,7 @@
         <Border Grid.Row="2" Background="#232836" Padding="20,10"
                 BorderBrush="#3D4663" BorderThickness="0,1,0,0">
             <DockPanel>
-                <TextBlock Text="SNMP SimManager v1.4" Foreground="#8C95A6" FontSize="12"
+                <TextBlock Text="SNMP SimManager v1.5" Foreground="#8C95A6" FontSize="12"
                            VerticalAlignment="Center" FlowDirection="LeftToRight"/>
                 <Button Content="סגור" DockPanel.Dock="Left" HorizontalAlignment="Left"
                         Click="CloseButton_Click" MinWidth="80" Style="{StaticResource AccentButton}"/>

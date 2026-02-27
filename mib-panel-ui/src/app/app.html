@@ -25,6 +25,7 @@
           Open Panel &#9656;
         </button>
       }
+      <button type="button" class="btn-help" title="User Guide" (click)="isGuideOpen = true">?</button>
     </div>
   </header>
 
@@ -96,4 +97,9 @@
 
   <!-- SET Feedback Toasts -->
   <app-set-feedback />
+
+  <!-- Help Guide Dialog -->
+  @if (isGuideOpen) {
+    <app-help-guide (close)="isGuideOpen = false" />
+  }
 </div>

@@ -1,0 +1,170 @@
+<div class="guide-overlay" (click)="close.emit()">
+  <div class="guide-dialog" (click)="$event.stopPropagation()">
+
+    <div class="guide-header">
+      <h2>MIB Panel — User Guide</h2>
+      <button type="button" class="btn-close" title="Close" (click)="close.emit()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="guide-body">
+
+      <!-- Getting Started -->
+      <section class="guide-section">
+        <h3>Getting Started</h3>
+        <p>MIB Panel displays SNMP and IDD device data as an interactive dashboard.
+           Load a Panel JSON file or connect to a live WPF server to get started.</p>
+        <div class="steps">
+          <div class="step"><span class="step-num">1</span> Click <strong>Load JSON</strong> or drag-and-drop a .json file</div>
+          <div class="step"><span class="step-num">2</span> The panel renders modules, fields, and tables automatically</div>
+          <div class="step"><span class="step-num">3</span> Edit writable fields and click <strong>Save</strong> to send changes</div>
+        </div>
+      </section>
+
+      <!-- SignalR Connection -->
+      <section class="guide-section">
+        <h3>Live Connection (SignalR)</h3>
+        <p>When the WPF application is running, MIB Panel connects automatically
+           to <code>localhost:5050</code> for real-time data.</p>
+        <div class="feature-list">
+          <div class="feature">
+            <span class="feature-icon" style="color:#57D9A3">&#9679;</span>
+            <div><strong>Green dot</strong> = Connected to WPF server</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#FF5F56">&#9679;</span>
+            <div><strong>Red dot</strong> = Disconnected (auto-reconnecting)</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#4C9AFF">&#9660;</span>
+            <div><strong>Select Device</strong> = Pick a device from WPF to load its panel</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#FFAB00">&#8635;</span>
+            <div><strong>Refresh</strong> = Re-sync all field values from the device</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Monitoring -->
+      <section class="guide-section">
+        <h3>Monitoring Section</h3>
+        <p>Status fields, counters, and gauges appear as color-coded cards:</p>
+        <div class="feature-list">
+          <div class="feature">
+            <span class="feature-icon" style="color:#57D9A3">|</span>
+            <div><strong>Green</strong> = Healthy / Active (up, enabled, true)</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#FF5F56">|</span>
+            <div><strong>Red</strong> = Critical / Down (down, error, failure)</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#FFAB00">|</span>
+            <div><strong>Orange</strong> = Warning / Degraded</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#4C9AFF">|</span>
+            <div><strong>Blue</strong> = Counter / Informational</div>
+          </div>
+        </div>
+        <p class="hint">Counters are formatted as K/M/G for readability (e.g. 1.2M = 1,200,000).</p>
+      </section>
+
+      <!-- Configuration -->
+      <section class="guide-section">
+        <h3>Configuration Section</h3>
+        <p>Writable fields (read-write / read-create) can be edited inline:</p>
+        <div class="feature-list">
+          <div class="feature">
+            <span class="feature-icon">&#9998;</span>
+            <div>Click the <strong>pencil icon</strong> or the value to start editing</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">&#9660;</span>
+            <div><strong>Enum</strong> fields show a dropdown with available options</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">&#9673;</span>
+            <div><strong>Toggle</strong> fields (0/1) show an ON/OFF switch</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">#</span>
+            <div><strong>Number</strong> fields enforce min/max constraints</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">@</span>
+            <div><strong>IP</strong> fields accept IP address format</div>
+          </div>
+        </div>
+        <p class="hint">Press <kbd>Enter</kbd> to save, <kbd>Esc</kbd> to cancel.</p>
+      </section>
+
+      <!-- Tables -->
+      <section class="guide-section">
+        <h3>Tables</h3>
+        <p>SNMP tables (e.g. ifTable, userTable) are displayed as grids. Writable cells
+           are highlighted — <strong>double-click</strong> a cell to edit it inline.</p>
+      </section>
+
+      <!-- IDD Support -->
+      <section class="guide-section">
+        <h3>IDD Devices (Non-SNMP)</h3>
+        <p>MIB Panel also supports IDD (Interface Design Document) devices — custom
+           hardware protocols that aren't SNMP. IDD panels use the same JSON format
+           with text-based field IDs instead of numeric OIDs.</p>
+        <div class="feature-list">
+          <div class="feature">
+            <span class="feature-icon">&#9881;</span>
+            <div>IDD fields are auto-detected (field ID starts with a letter, not a digit)</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">&#8644;</span>
+            <div>SET commands are routed through <code>SendIddSet</code> to WPF</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">&#9889;</span>
+            <div>Real-time updates from WPF work the same as SNMP</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Open Panel -->
+      <section class="guide-section">
+        <h3>Side Panel</h3>
+        <p>Click <strong>Open Panel</strong> to open a slide-out panel on the right with
+           all modules, fields, and system info in a compact scrollable view.</p>
+      </section>
+
+      <!-- System Info -->
+      <section class="guide-section">
+        <h3>System Properties</h3>
+        <p>The footer displays device metadata grouped by category:</p>
+        <div class="feature-list">
+          <div class="feature">
+            <span class="feature-icon" style="color:#A78BFA">&#9632;</span>
+            <div><strong>Identity</strong> — Name, description, model, serial number</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#57D9A3">&#9632;</span>
+            <div><strong>System</strong> — Firmware, uptime, contact, location</div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon" style="color:#4C9AFF">&#9632;</span>
+            <div><strong>Network</strong> — IP, MAC, gateway, subnet, DNS</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="guide-footer">
+      <span class="footer-text">MIB Panel v1.5 — SNMP SimManager</span>
+      <button type="button" class="btn-got-it" (click)="close.emit()">Got it</button>
+    </div>
+
+  </div>
+</div>

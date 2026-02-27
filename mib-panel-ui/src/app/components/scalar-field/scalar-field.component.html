@@ -34,7 +34,7 @@
       <div class="edit-area">
         @switch (field.inputType) {
           @case ('enum') {
-            <select [(ngModel)]="editValue" class="input-field">
+            <select [(ngModel)]="editValue" class="input-field" [attr.aria-label]="field.name" title="Select value">
               @for (opt of field.options; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }} ({{ opt.value }})</option>
               }
@@ -42,7 +42,7 @@
           }
           @case ('toggle') {
             <label class="toggle-switch">
-              <input type="checkbox"
+              <input type="checkbox" [title]="field.name"
                      [checked]="editValue === '1'"
                      (change)="editValue = $any($event.target).checked ? '1' : '2'">
               <span class="toggle-slider"></span>
@@ -53,16 +53,19 @@
             <input type="number" [(ngModel)]="editValue"
                    [min]="field.minValue ?? ''"
                    [max]="field.maxValue ?? ''"
-                   class="input-field" placeholder="Enter number">
+                   class="input-field" placeholder="Enter number"
+                   [title]="field.name">
           }
           @case ('ip') {
             <input type="text" [(ngModel)]="editValue"
                    class="input-field" placeholder="0.0.0.0"
+                   [title]="field.name"
                    pattern="\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}">
           }
           @default {
             <input type="text" [(ngModel)]="editValue"
                    class="input-field"
+                   [title]="field.name"
                    [maxlength]="field.maxLength ?? 255"
                    [placeholder]="field.defaultValue || 'Enter value'">
           }

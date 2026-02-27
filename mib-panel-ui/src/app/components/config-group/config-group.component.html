@@ -28,7 +28,7 @@
           <div class="edit-row">
             @switch (field.inputType) {
               @case ('enum') {
-                <select [(ngModel)]="editValue" class="edit-input">
+                <select [(ngModel)]="editValue" class="edit-input" [attr.aria-label]="field.name" title="Select value">
                   @for (opt of field.options; track opt.value) {
                     <option [value]="opt.value">{{ opt.label }}</option>
                   }
@@ -36,7 +36,7 @@
               }
               @case ('toggle') {
                 <label class="toggle-control">
-                  <input type="checkbox"
+                  <input type="checkbox" [title]="field.name"
                          [checked]="editValue === '1'"
                          (change)="editValue = $any($event.target).checked ? '1' : '2'">
                   <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -48,18 +48,21 @@
                        [min]="field.minValue ?? ''"
                        [max]="field.maxValue ?? ''"
                        class="edit-input"
+                       [title]="field.name"
                        (keydown.enter)="sendSet(field)"
                        (keydown.escape)="cancelEdit()">
               }
               @case ('ip') {
                 <input type="text" [(ngModel)]="editValue"
                        class="edit-input" placeholder="0.0.0.0"
+                       [title]="field.name"
                        (keydown.enter)="sendSet(field)"
                        (keydown.escape)="cancelEdit()">
               }
               @default {
                 <input type="text" [(ngModel)]="editValue"
                        class="edit-input"
+                       [title]="field.name"
                        [maxlength]="field.maxLength ?? 255"
                        (keydown.enter)="sendSet(field)"
                        (keydown.escape)="cancelEdit()">

@@ -93,6 +93,28 @@
   &:hover { background: #79B8FF; }
 }
 
+.btn-help {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #3D4663;
+  background: transparent;
+  color: #8C95A6;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #232836;
+    border-color: #4C9AFF;
+    color: #4C9AFF;
+  }
+}
+
 // ── Main Content ──
 .main-content {
   flex: 1;
