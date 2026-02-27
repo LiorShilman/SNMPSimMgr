@@ -28,6 +28,14 @@ public partial class NetworkMonitorViewModel : ObservableObject
 
     private void OnTrafficReceived(string deviceName, string op, string oid, string val, string sourceIp)
     {
+        // May be called from background threads (simulator) — marshal to UI
+        if (!App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.BeginInvoke((Action)(() =>
+                OnTrafficReceived(deviceName, op, oid, val, sourceIp)));
+            return;
+        }
+
         bool isInjection = sourceIp == "injection";
         string displayIp = isInjection ? $"{deviceName} → INJECTION" : sourceIp;
 
@@ -71,7 +79,7 @@ public partial class NetworkMonitorViewModel : ObservableObject
     private async Task ResetActiveAsync(ClientConnection client)
     {
         await Task.Delay(500);
-        App.Current.Dispatcher.Invoke(() => client.IsActive = false);
+        App.Current.Dispatcher.BeginInvoke((Action)(() => client.IsActive = false));
     }
 
     [RelayCommand]

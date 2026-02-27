@@ -18,16 +18,17 @@ public partial class SimulatorView : UserControl
     {
         if (DataContext is not SimulatorViewModel vm) return;
 
+        // Items are inserted at index 0 (newest first) — scroll to top
         vm.TrafficLog.CollectionChanged += (_, e) =>
         {
             if (e.Action == NotifyCollectionChangedAction.Add && TrafficListBox.Items.Count > 0)
-                TrafficListBox.ScrollIntoView(TrafficListBox.Items[^1]);
+                TrafficListBox.ScrollIntoView(TrafficListBox.Items[0]);
         };
 
         vm.LogEntries.CollectionChanged += (_, e) =>
         {
             if (e.Action == NotifyCollectionChangedAction.Add && SystemLogListBox.Items.Count > 0)
-                SystemLogListBox.ScrollIntoView(SystemLogListBox.Items[^1]);
+                SystemLogListBox.ScrollIntoView(SystemLogListBox.Items[0]);
         };
     }
 

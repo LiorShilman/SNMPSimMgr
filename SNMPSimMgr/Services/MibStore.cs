@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using SNMPSimMgr.Models;
 
@@ -8,38 +10,50 @@ namespace SNMPSimMgr.Services;
 public class MibStore
 {
     /// <summary>All resolved OID→MibDefinition for the currently loaded device.</summary>
-    public Dictionary<string, MibDefinition> LoadedOids { get; } = new();
+    /// <remarks>Thread-safe: use ConcurrentDictionary to prevent corruption
+    /// when the SignalR hub and WPF UI access it concurrently.</remarks>
+    public ConcurrentDictionary<string, MibDefinition> LoadedOids { get; } = new();
 
     /// <summary>Display names of loaded MIB files for UI.</summary>
     public ObservableCollection<string> LoadedFileNames { get; } = new();
 
     public int TotalDefinitions => LoadedOids.Count;
 
+    // Prevents concurrent LoadForDeviceAsync calls from corrupting state
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
+
     /// <summary>
     /// Load all MIB files associated with a device profile.
     /// Uses multi-file parsing so cross-MIB dependencies resolve correctly.
-    /// Thread-safe: marshals ObservableCollection changes to UI dispatcher.
+    /// Thread-safe: serialized via SemaphoreSlim, uses ConcurrentDictionary.
     /// </summary>
-    public async Task LoadForDeviceAsync(DeviceProfile device)
+    /// <param name="updateUI">
+    /// When true (default), updates the LoadedFileNames ObservableCollection.
+    /// Pass false when calling from a background thread (e.g., SignalR hub)
+    /// to avoid Dispatcher deadlocks.
+    /// </param>
+    public async Task LoadForDeviceAsync(DeviceProfile device, bool updateUI = true)
     {
-        LoadedOids.Clear();
-        DispatchUI(() => LoadedFileNames.Clear());
-
-        if (device.MibFilePaths.Count == 0) return;
-
-        // Remove paths that no longer exist on disk
-        device.MibFilePaths.RemoveAll(p => !File.Exists(p));
-        if (device.MibFilePaths.Count == 0) return;
-
+        await _loadLock.WaitAsync();
         try
         {
+            LoadedOids.Clear();
+            if (updateUI) DispatchUI(() => LoadedFileNames.Clear());
+
+            if (device.MibFilePaths.Count == 0) return;
+
+            // Remove paths that no longer exist on disk
+            device.MibFilePaths.RemoveAll(p => !File.Exists(p));
+            if (device.MibFilePaths.Count == 0) return;
+
             // Parse all files together for cross-file dependency resolution
             var results = await Task.Run(() =>
                 MibParserService.ParseMultiple(device.MibFilePaths));
 
             foreach (var info in results)
             {
-                DispatchUI(() => LoadedFileNames.Add($"{info.ModuleName} ({info.DefinitionCount})"));
+                if (updateUI)
+                    DispatchUI(() => LoadedFileNames.Add($"{info.ModuleName} ({info.DefinitionCount})"));
                 foreach (var def in info.Definitions)
                     LoadedOids[def.Oid] = def;
             }
@@ -48,13 +62,17 @@ public class MibStore
         {
             System.Diagnostics.Debug.WriteLine($"MIB parse error: {ex.Message}");
         }
+        finally
+        {
+            _loadLock.Release();
+        }
     }
 
     private static void DispatchUI(Action action)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
-            dispatcher.Invoke(action);
+            dispatcher.BeginInvoke(action);
         else
             action();
     }

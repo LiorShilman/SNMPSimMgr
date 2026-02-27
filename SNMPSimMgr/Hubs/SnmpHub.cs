@@ -24,6 +24,24 @@ public class SnmpHub : Hub
     public static DeviceListViewModel? DeviceListVm { get; set; }
     public static MibStore? MibStoreRef { get; set; }
 
+    // ── Schema cache ─────────────────────────────────────────────────
+    // Avoids re-parsing MIBs and rebuilding the schema on every device switch.
+    // Key = deviceId, Value = (cacheKey based on MIB file paths, cached schema).
+    private static readonly Dictionary<string, (string cacheKey, MibPanelSchema schema)> SchemaCache = new();
+
+    private static string BuildCacheKey(DeviceProfile device)
+    {
+        // Sorted MIB file paths → deterministic key. If user adds/removes MIBs, key changes.
+        var paths = device.MibFilePaths?.OrderBy(p => p) ?? Enumerable.Empty<string>();
+        return string.Join("|", paths);
+    }
+
+    /// <summary>Invalidate cached schema for a device (call when MIBs change).</summary>
+    public static void InvalidateSchemaCache(string deviceId)
+    {
+        lock (SchemaCache) { SchemaCache.Remove(deviceId); }
+    }
+
     // ── Server methods (called by Angular) ──────────────────────────
 
     /// <summary>Send an SNMP SET to a running simulator.</summary>
@@ -86,24 +104,29 @@ public class SnmpHub : Hub
                 return null;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[SnmpHub] Found device: {device.Name}, loading MIBs...");
+            // Check schema cache — skip MIB reload + schema build if MIBs haven't changed
+            var cacheKey = BuildCacheKey(device);
+            lock (SchemaCache)
+            {
+                if (SchemaCache.TryGetValue(deviceId, out var cached) && cached.cacheKey == cacheKey)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema cache HIT for {device.Name} ({cached.schema.TotalFields} fields)");
+                    return cached.schema;
+                }
+            }
 
-            // MibStore uses ObservableCollection which requires the WPF Dispatcher thread
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-            {
-                await dispatcher.InvokeAsync(async () =>
-                    await MibStoreRef.LoadForDeviceAsync(device)
-                ).Task.Unwrap();
-            }
-            else
-            {
-                await MibStoreRef.LoadForDeviceAsync(device);
-            }
+            System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema cache MISS for {device.Name}, loading MIBs...");
+
+            // Skip UI updates (ObservableCollection) — avoids Dispatcher deadlocks
+            await MibStoreRef.LoadForDeviceAsync(device, updateUI: false);
 
             System.Diagnostics.Debug.WriteLine("[SnmpHub] Building schema...");
             var schema = await ExportService.BuildSchemaAsync(device);
             System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema built: {schema?.TotalFields} fields, {schema?.Modules?.Count} modules");
+
+            // Store in cache
+            if (schema != null)
+                lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, schema); }
 
             return schema;
         }
@@ -143,20 +166,36 @@ public class SnmpHub : Hub
                 Community = device.Community
             };
 
-            // MibStore uses ObservableCollection — must run on Dispatcher thread
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
+            // Use cached schema for OID collection — avoid re-parsing MIBs
+            MibPanelSchema? schema = null;
+            var cacheKey = BuildCacheKey(device);
+            bool cacheHit = false;
+            lock (SchemaCache)
             {
-                await dispatcher.InvokeAsync(async () =>
-                    await MibStoreRef.LoadForDeviceAsync(device)
-                ).Task.Unwrap();
+                if (SchemaCache.TryGetValue(deviceId, out var cached) && cached.cacheKey == cacheKey)
+                {
+                    schema = cached.schema;
+                    cacheHit = true;
+                }
+            }
+
+            if (!cacheHit)
+            {
+                System.Diagnostics.Debug.WriteLine("[SnmpHub] RequestRefresh: schema cache MISS, rebuilding...");
+
+                // Skip UI updates (ObservableCollection) — avoids Dispatcher deadlocks
+                await MibStoreRef.LoadForDeviceAsync(device, updateUI: false);
+
+                schema = await ExportService.BuildSchemaAsync(device);
+                if (schema != null)
+                    lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, schema); }
             }
             else
             {
-                await MibStoreRef.LoadForDeviceAsync(device);
+                System.Diagnostics.Debug.WriteLine("[SnmpHub] RequestRefresh: schema cache HIT, skipping MIB reload");
             }
 
-            var schema = await ExportService.BuildSchemaAsync(device);
+            if (schema == null) return result;
 
             // Collect all OIDs: scalars + table cells
             var allOids = new List<string>();
@@ -175,13 +214,20 @@ public class SnmpHub : Hub
 
             System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: fetching {allOids.Count} OIDs from port {sim.Port}");
 
-            // Batch GET in groups of 20
+            // Batch GET in groups of 20 — tolerate per-batch failures
             for (int i = 0; i < allOids.Count; i += 20)
             {
-                var batch = allOids.Skip(i).Take(20);
-                var records = await Recorder.GetMultipleAsync(target, batch);
-                foreach (var r in records)
-                    result[r.Oid] = r.Value;
+                try
+                {
+                    var batch = allOids.Skip(i).Take(20);
+                    var records = await Recorder.GetMultipleAsync(target, batch);
+                    foreach (var r in records)
+                        result[r.Oid] = r.Value;
+                }
+                catch (Exception batchEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SnmpHub] Batch GET failed (offset {i}): {batchEx.Message}");
+                }
             }
 
             System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: got {result.Count} values");

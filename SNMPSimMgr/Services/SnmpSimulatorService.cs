@@ -168,6 +168,9 @@ public class SnmpSimulatorService : IDisposable
 
     private void HandleGet(Pdu request, Pdu response, string sourceIp)
     {
+        int found = 0, missing = 0;
+        bool isBatch = request.VbList.Count > 1;
+
         foreach (var vb in request.VbList)
         {
             var oid = vb.Oid.ToString();
@@ -176,15 +179,33 @@ public class SnmpSimulatorService : IDisposable
                 var val = GetValue(oid);
                 var vbType = GetValueType(oid);
                 response.VbList.Add(vb.Oid, SnmpTypeHelper.CreateValue(vbType, val));
-                RequestReceived?.Invoke("GET", oid, val, sourceIp);
-                Log($"GET {oid} → {val}");
+                found++;
+
+                if (!isBatch)
+                {
+                    RequestReceived?.Invoke("GET", oid, val, sourceIp);
+                    Log($"GET {oid} → {val}");
+                }
             }
             else
             {
                 response.VbList.Add(vb.Oid, new NoSuchInstance());
-                RequestReceived?.Invoke("GET", oid, string.Empty, sourceIp);
-                Log($"GET {oid} → NoSuchInstance");
+                missing++;
+
+                if (!isBatch)
+                {
+                    RequestReceived?.Invoke("GET", oid, string.Empty, sourceIp);
+                    Log($"GET {oid} → NoSuchInstance");
+                }
             }
+        }
+
+        // Batch: single summary log + event to avoid flooding UI
+        if (isBatch)
+        {
+            var firstOid = request.VbList[0].Oid.ToString();
+            Log($"GET batch ({found + missing} OIDs) {firstOid}.. → {found} ok, {missing} missing");
+            RequestReceived?.Invoke("GET", $"{firstOid} (+{found + missing - 1})", $"{found} values", sourceIp);
         }
     }
 

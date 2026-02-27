@@ -930,6 +930,9 @@ public partial class MibBrowserViewModel : ObservableObject
             // Save device profile with updated MibFilePaths
             await _deviceList.SaveAsync();
 
+            // Invalidate cached panel schema — MIBs changed
+            Hubs.SnmpHub.InvalidateSchemaCache(device.Id);
+
             // Reload MIBs for this device and rebuild tree
             await _mibStore.LoadForDeviceAsync(device);
             MibCount = _mibStore.TotalDefinitions;
@@ -982,6 +985,9 @@ public partial class MibBrowserViewModel : ObservableObject
 
         if (pathToRemove != null)
             device.MibFilePaths.Remove(pathToRemove);
+
+        // Invalidate cached panel schema — MIBs changed
+        Hubs.SnmpHub.InvalidateSchemaCache(device.Id);
 
         // Save and reload
         await _deviceList.SaveAsync();

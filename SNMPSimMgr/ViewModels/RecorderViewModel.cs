@@ -49,27 +49,27 @@ public partial class RecorderViewModel : ObservableObject
         _store = store;
         _deviceList = deviceList;
 
-        _recorder.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
+        _recorder.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
+            LogEntries.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {msg}");
             while (LogEntries.Count > 1000)
-                LogEntries.RemoveAt(0);
-        });
+                LogEntries.RemoveAt(LogEntries.Count - 1);
+        }));
 
-        _recorder.ProgressChanged += count => App.Current.Dispatcher.Invoke(() =>
+        _recorder.ProgressChanged += count => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
             OidCount = count;
-        });
+        }));
 
-        _trapListener.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
+        _trapListener.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] [TRAP] {msg}");
-        });
+            LogEntries.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [TRAP] {msg}");
+        }));
 
-        _trapListener.TrapReceived += trap => App.Current.Dispatcher.Invoke(() =>
+        _trapListener.TrapReceived += trap => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
             CapturedTraps.Add(trap);
-        });
+        }));
 
         _deviceList.PropertyChanged += async (_, e) =>
         {

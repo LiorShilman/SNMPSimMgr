@@ -66,8 +66,8 @@ public partial class SimulatorViewModel : ObservableObject
         _recorder = recorder;
         _mibStore = mibStore;
 
-        _trapGenerator.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
+        _trapGenerator.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
+            LogEntries.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {msg}")));
 
         _deviceList.PropertyChanged += async (_, e) =>
         {
@@ -135,14 +135,14 @@ public partial class SimulatorViewModel : ObservableObject
 
         if (_simulators.ContainsKey(device.Id))
         {
-            LogEntries.Add($"Simulator for {device.Name} is already running.");
+            LogEntries.Insert(0,$"Simulator for {device.Name} is already running.");
             return;
         }
 
         var walkData = await _store.LoadWalkDataAsync(device);
         if (walkData.Count == 0)
         {
-            LogEntries.Add($"No walk data for {device.Name}. Record first!");
+            LogEntries.Insert(0,$"No walk data for {device.Name}. Record first!");
             return;
         }
 
@@ -152,7 +152,7 @@ public partial class SimulatorViewModel : ObservableObject
         var sim = new SnmpSimulatorService();
         sim.LoadMibData(walkData, device.Name);
 
-        sim.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
+        sim.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
             // Enrich OIDs in log messages with MIB names
             var enriched = Regex.Replace(msg, @"(\d+(?:\.\d+){5,})", m =>
@@ -160,21 +160,25 @@ public partial class SimulatorViewModel : ObservableObject
                 var name = ResolveOidName(m.Value);
                 return string.IsNullOrEmpty(name) ? m.Value : $"{m.Value} ({name})";
             });
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] [{device.Name}] {enriched}");
-        });
+            LogEntries.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [{device.Name}] {enriched}");
+        }));
 
-        sim.RequestReceived += (op, oid, val, sourceIp) => App.Current.Dispatcher.Invoke(() =>
+        sim.RequestReceived += (op, oid, val, sourceIp) =>
         {
-            var name = ResolveOidName(oid);
-            var nameTag = string.IsNullOrEmpty(name) ? "" : $" ({name})";
-            TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] {sourceIp} → {device.Name} | {op} {oid}{nameTag} {val}");
-            while (TrafficLog.Count > 500)
-                TrafficLog.RemoveAt(0);
-
-            // Only broadcast individual GET/SET to Angular (not GETNEXT/GETBULK to avoid flooding during WALK)
+            // Broadcast to Angular on the background thread (no UI needed)
             if (op == "GET" || op == "SET")
                 TrafficReceived?.Invoke(device.Name, op, oid, val, sourceIp);
-        });
+
+            // Queue UI update asynchronously — don't block the simulator thread
+            App.Current.Dispatcher.BeginInvoke((Action)(() =>
+            {
+                var name = ResolveOidName(oid);
+                var nameTag = string.IsNullOrEmpty(name) ? "" : $" ({name})";
+                TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {sourceIp} → {device.Name} | {op} {oid}{nameTag} {val}");
+                while (TrafficLog.Count > 500)
+                    TrafficLog.RemoveAt(TrafficLog.Count - 1);
+            }));
+        };
 
         var port = SimulatorPort;
         var listenIp = SimulatorListenIp;
@@ -225,7 +229,7 @@ public partial class SimulatorViewModel : ObservableObject
         }
         _simulators.Clear();
         ActiveSimulators.Clear();
-        LogEntries.Add("All simulators stopped.");
+        LogEntries.Insert(0,"All simulators stopped.");
     }
 
     /// <summary>
@@ -238,62 +242,65 @@ public partial class SimulatorViewModel : ObservableObject
         var device = SelectedDevice;
         if (device == null)
         {
-            LogEntries.Add("Select a device first.");
+            LogEntries.Insert(0,"Select a device first.");
             return;
         }
 
         if (!_simulators.TryGetValue(device.Id, out var sim))
         {
-            LogEntries.Add($"No running simulator for {device.Name}. Start it first!");
+            LogEntries.Insert(0,$"No running simulator for {device.Name}. Start it first!");
             return;
         }
 
         if (string.IsNullOrEmpty(SelectedSessionName))
         {
-            LogEntries.Add("Select a session to inject.");
+            LogEntries.Insert(0,"Select a session to inject.");
             return;
         }
 
         var session = await _store.LoadSessionAsync(device, SelectedSessionName);
         if (session == null || session.Frames.Count == 0)
         {
-            LogEntries.Add($"No recorded session '{SelectedSessionName}' for {device.Name}.");
+            LogEntries.Insert(0,$"No recorded session '{SelectedSessionName}' for {device.Name}.");
             return;
         }
 
-        sim.InjectionProgress += (current, total) => App.Current.Dispatcher.Invoke(() =>
+        sim.InjectionProgress += (current, total) => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
             InjectionStatus = $"Frame {current}/{total}";
-        });
+        }));
 
-        sim.InjectionFrameApplied += (frameNum, records) => App.Current.Dispatcher.Invoke(() =>
+        sim.InjectionFrameApplied += (frameNum, records) =>
         {
-            QueryResults.Clear();
-            foreach (var r in records)
-            {
-                QueryResults.Add(new QueryResultItem
-                {
-                    Time = DateTime.Now.ToString("HH:mm:ss"),
-                    Operation = $"INJ#{frameNum}",
-                    Oid = r.Oid,
-                    ValueType = r.ValueType,
-                    Value = r.Value,
-                    IsSuccess = true
-                });
-            }
-
-            // Log injection traffic with device → clients direction
-            TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] {device.Name} → Clients | INJ#{frameNum} {records.Count} OIDs");
-            while (TrafficLog.Count > 500)
-                TrafficLog.RemoveAt(0);
-
             TrafficReceived?.Invoke(device.Name, $"INJ#{frameNum}", $"{records.Count} OIDs", $"Frame {frameNum}", "injection");
-        });
+
+            App.Current.Dispatcher.BeginInvoke((Action)(() =>
+            {
+                QueryResults.Clear();
+                foreach (var r in records)
+                {
+                    QueryResults.Add(new QueryResultItem
+                    {
+                        Time = DateTime.Now.ToString("HH:mm:ss"),
+                        Operation = $"INJ#{frameNum}",
+                        Oid = r.Oid,
+                        ValueType = r.ValueType,
+                        Value = r.Value,
+                        IsSuccess = true
+                    });
+                }
+
+                // Log injection traffic with device → clients direction
+                TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {device.Name} → Clients | INJ#{frameNum} {records.Count} OIDs");
+                while (TrafficLog.Count > 500)
+                    TrafficLog.RemoveAt(TrafficLog.Count - 1);
+            }));
+        };
 
         sim.StartInjection(session);
         IsInjecting = true;
         InjectionStatus = $"Injecting {session.Frames.Count} frames...";
-        LogEntries.Add($"Injection started for {device.Name} — {session.Frames.Count} frames, interval {session.IntervalSeconds}s");
+        LogEntries.Insert(0,$"Injection started for {device.Name} — {session.Frames.Count} frames, interval {session.IntervalSeconds}s");
     }
 
     [RelayCommand]
@@ -317,7 +324,7 @@ public partial class SimulatorViewModel : ObservableObject
         var traps = await _store.LoadTrapsAsync(device);
         if (traps.Count == 0)
         {
-            LogEntries.Add($"No recorded traps for {device.Name}.");
+            LogEntries.Insert(0,$"No recorded traps for {device.Name}.");
             return;
         }
 
@@ -415,7 +422,7 @@ public partial class SimulatorViewModel : ObservableObject
             {
                 var setName = ResolveOidName(QueryOid);
                 var setNameTag = string.IsNullOrEmpty(setName) ? "" : $" ({setName})";
-                TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] WPF → {SelectedSimulator.DeviceName} | SET {QueryOid}{setNameTag} {SetValue}");
+                TrafficLog.Insert(0,$"[{DateTime.Now:HH:mm:ss}] WPF → {SelectedSimulator.DeviceName} | SET {QueryOid}{setNameTag} {SetValue}");
                 while (TrafficLog.Count > 500)
                     TrafficLog.RemoveAt(0);
 
@@ -503,7 +510,7 @@ public partial class SimulatorViewModel : ObservableObject
                 });
             }
 
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Walk complete — {filtered.Count} OIDs from {SelectedSimulator?.DeviceName}");
+            LogEntries.Insert(0,$"[{DateTime.Now:HH:mm:ss}] Walk complete — {filtered.Count} OIDs from {SelectedSimulator?.DeviceName}");
         }
         catch (Exception ex)
         {
@@ -628,14 +635,14 @@ public partial class SimulatorViewModel : ObservableObject
                 });
             }
 
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD loaded: {IddFields.Count} fields from {System.IO.Path.GetFileName(dlg.FileName)}");
+            LogEntries.Insert(0,$"[{DateTime.Now:HH:mm:ss}] IDD loaded: {IddFields.Count} fields from {System.IO.Path.GetFileName(dlg.FileName)}");
 
             if (IddFields.Count > 0)
                 SelectedIddField = IddFields[0];
         }
         catch (Exception ex)
         {
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD load error: {ex.Message}");
+            LogEntries.Insert(0,$"[{DateTime.Now:HH:mm:ss}] IDD load error: {ex.Message}");
         }
     }
 
@@ -655,7 +662,7 @@ public partial class SimulatorViewModel : ObservableObject
         if (field != null) field.CurrentValue = IddFieldValue;
 
         App.Current.Dispatcher.Invoke(() =>
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD Broadcast: {IddFieldId} = {IddFieldValue}"));
+            LogEntries.Insert(0,$"[{DateTime.Now:HH:mm:ss}] IDD Broadcast: {IddFieldId} = {IddFieldValue}"));
     }
 }
 
