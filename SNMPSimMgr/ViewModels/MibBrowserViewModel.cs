@@ -204,6 +204,7 @@ public partial class MibBrowserViewModel : ObservableObject
         {
             RootNodes.Clear();
             FlatRecords.Clear();
+            ClearPanelState();
             TotalOids = 0;
             MibCount = 0;
             MibStatus = string.Empty;
@@ -215,6 +216,7 @@ public partial class MibBrowserViewModel : ObservableObject
         }
 
         HasDevice = true;
+        ClearPanelState();
 
         // Load device's MIB files
         await _mibStore.LoadForDeviceAsync(device);
@@ -523,7 +525,8 @@ public partial class MibBrowserViewModel : ObservableObject
             // Flat → Panel
             ShowTree = false;
             ShowPanel = true;
-            if (PanelSchema == null && _mibStore.TotalDefinitions > 0)
+            // Always rebuild if stale (null) or if MIB count changed
+            if (_mibStore.TotalDefinitions > 0 && (PanelSchema == null || PanelSchema.TotalFields == 0))
                 _ = BuildPanel();
         }
         else
@@ -533,6 +536,17 @@ public partial class MibBrowserViewModel : ObservableObject
             ShowPanel = false;
             AutoRefreshEnabled = false;
         }
+    }
+
+    private void ClearPanelState()
+    {
+        PanelSchema = null;
+        PanelStatus = string.Empty;
+        IdentityFields.Clear();
+        MonitorFields.Clear();
+        ConfigFields.Clear();
+        SystemInfoItems.Clear();
+        PanelTables.Clear();
     }
 
     [RelayCommand]
@@ -901,6 +915,10 @@ public partial class MibBrowserViewModel : ObservableObject
                 BuildTree(_allRecords);
                 ApplyFilter();
             }
+
+            // Rebuild panel if currently visible
+            if (ShowPanel)
+                _ = BuildPanel();
         }
     }
 
@@ -947,6 +965,12 @@ public partial class MibBrowserViewModel : ObservableObject
             BuildTree(_allRecords);
             ApplyFilter();
         }
+
+        // Rebuild panel if currently visible, or clear stale data
+        if (ShowPanel && _mibStore.TotalDefinitions > 0)
+            _ = BuildPanel();
+        else
+            ClearPanelState();
     }
 
     [RelayCommand]
