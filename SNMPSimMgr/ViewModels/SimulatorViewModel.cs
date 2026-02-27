@@ -80,14 +80,12 @@ public partial class SimulatorViewModel : ObservableObject
             SelectedSessionName = SessionList[0];
     }
 
-    /// <summary>Resolve OID to MIB name, e.g. "1.3.6.1.2.1.1.1.0" → "sysDescr".</summary>
-    private string ResolveOidName(string oid)
+    /// <summary>Resolve OID to MibDefinition by trying exact match then stripping trailing segments.</summary>
+    private MibDefinition? ResolveOidDef(string oid)
     {
-        // Exact match
         if (_mibStore.LoadedOids.TryGetValue(oid, out var def))
-            return def.Name;
+            return def;
 
-        // Strip last segment progressively (handles scalar .0 and table row indexes)
         var current = oid;
         for (int i = 0; i < 3; i++)
         {
@@ -95,10 +93,13 @@ public partial class SimulatorViewModel : ObservableObject
             if (lastDot <= 0) break;
             current = current[..lastDot];
             if (_mibStore.LoadedOids.TryGetValue(current, out def))
-                return def.Name;
+                return def;
         }
-        return "";
+        return null;
     }
+
+    /// <summary>Resolve OID to MIB name, e.g. "1.3.6.1.2.1.1.1.0" → "sysDescr".</summary>
+    private string ResolveOidName(string oid) => ResolveOidDef(oid)?.Name ?? "";
 
     private DeviceProfile? BuildTempDevice()
     {
@@ -523,20 +524,21 @@ public partial class SimulatorViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(entry)) return;
 
-        var match = Regex.Match(entry, @"\|\s+\w+\s+([\d\.]+)");
+        // Format: [HH:mm:ss] source → device | OP OID (name) value
+        var match = Regex.Match(entry, @"\|\s+\w+\s+([\d\.]+)(?:\s+\(\w+\))?\s*(.*)");
         if (match.Success)
         {
             var oid = match.Groups[1].Value;
+            var value = match.Groups[2].Value.Trim();
             QueryOid = oid;
 
-            // Try to resolve the SNMP type from MIB definitions
-            var baseOid = oid.EndsWith(".0") ? oid[..^2] : oid;
-            if (_mibStore.LoadedOids.TryGetValue(baseOid, out var def) ||
-                _mibStore.LoadedOids.TryGetValue(oid, out def))
-            {
-                if (!string.IsNullOrEmpty(def.Syntax))
-                    SetValueType = MapMibSyntaxToSnmpType(def.Syntax);
-            }
+            if (!string.IsNullOrEmpty(value))
+                SetValue = value;
+
+            // Resolve SNMP type from MIB definitions
+            var def = ResolveOidDef(oid);
+            if (def != null && !string.IsNullOrEmpty(def.Syntax))
+                SetValueType = MapMibSyntaxToSnmpType(def.Syntax);
         }
     }
 

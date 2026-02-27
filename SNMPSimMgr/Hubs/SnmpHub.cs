@@ -157,17 +157,28 @@ public class SnmpHub : Hub
             }
 
             var schema = await ExportService.BuildSchemaAsync(device);
-            var scalarOids = schema.Modules
-                .SelectMany(m => m.Scalars)
-                .Select(f => f.Oid.EndsWith(".0") ? f.Oid : f.Oid + ".0")
-                .ToList();
 
-            System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: fetching {scalarOids.Count} OIDs from port {sim.Port}");
+            // Collect all OIDs: scalars + table cells
+            var allOids = new List<string>();
+
+            // Scalar OIDs (append .0 for instance)
+            allOids.AddRange(schema.Modules
+                .SelectMany(m => m.Scalars)
+                .Select(f => f.Oid.EndsWith(".0") ? f.Oid : f.Oid + ".0"));
+
+            // Table cell OIDs: column.oid + "." + row.index
+            foreach (var module in schema.Modules)
+            foreach (var table in module.Tables)
+            foreach (var row in table.Rows)
+            foreach (var col in table.Columns)
+                allOids.Add(col.Oid + "." + row.Index);
+
+            System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: fetching {allOids.Count} OIDs from port {sim.Port}");
 
             // Batch GET in groups of 20
-            for (int i = 0; i < scalarOids.Count; i += 20)
+            for (int i = 0; i < allOids.Count; i += 20)
             {
-                var batch = scalarOids.Skip(i).Take(20);
+                var batch = allOids.Skip(i).Take(20);
                 var records = await Recorder.GetMultipleAsync(target, batch);
                 foreach (var r in records)
                     result[r.Oid] = r.Value;

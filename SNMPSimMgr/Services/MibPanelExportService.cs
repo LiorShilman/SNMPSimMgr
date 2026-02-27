@@ -77,11 +77,19 @@ public class MibPanelExportService
             }
             else
             {
-                // Scalar: has .0 instance, or no direct instances at all
+                // Scalar: has .0 instance in walk data, or is a readable OBJECT-TYPE without walk data
                 if (walkLookup.ContainsKey(def.Oid + ".0") || walkLookup.ContainsKey(def.Oid))
+                {
                     scalarDefs.Add(def);
-                else
-                    scalarDefs.Add(def); // Include MIB definition even without walk data
+                }
+                else if (!string.IsNullOrEmpty(def.Access) &&
+                         def.Access != "not-accessible" &&
+                         !string.IsNullOrEmpty(def.Syntax))
+                {
+                    // Include readable OBJECT-TYPEs even without walk data
+                    scalarDefs.Add(def);
+                }
+                // Skip non-accessible items: tables, entries, notifications, groups, compliance
             }
         }
 

@@ -29,21 +29,35 @@ export class MibPanelService {
 
         const oid = traffic.oid;
         let updated = false;
+
         for (const module of current.modules) {
+          // Match scalars
           for (const field of module.scalars) {
             const fieldOid = field.oid.endsWith('.0') ? field.oid : field.oid + '.0';
             if (fieldOid === oid || field.oid === oid) {
-              console.log('[MibPanel] Matched field:', field.name, fieldOid, '← new value:', traffic.value);
               field.currentValue = traffic.value;
               updated = true;
             }
           }
+
+          // Match table cells: OID = column.oid + "." + row.index
+          // Row values are keyed by column OID (not name)
+          for (const table of module.tables) {
+            for (const col of table.columns) {
+              if (oid.startsWith(col.oid + '.')) {
+                const rowIndex = oid.substring(col.oid.length + 1);
+                const row = table.rows.find(r => r.index === rowIndex);
+                if (row && row.values[col.oid]) {
+                  row.values[col.oid].value = traffic.value;
+                  updated = true;
+                }
+              }
+            }
+          }
         }
+
         if (updated) {
           this.schema.set({ ...current });
-          console.log('[MibPanel] Schema updated with new value');
-        } else {
-          console.log('[MibPanel] No matching field found for OID:', oid);
         }
       });
     });
@@ -76,6 +90,8 @@ export class MibPanelService {
       console.log('[MibPanel] requestSchema returned:', schema);
       if (schema) {
         this.schema.set(schema as MibPanelSchema);
+        // Auto-refresh to get live values from the running simulator
+        await this.refreshValues();
       } else {
         console.warn('[MibPanel] Schema was null/undefined');
       }
@@ -86,7 +102,7 @@ export class MibPanelService {
     }
   }
 
-  /** Refresh scalar values from a live simulator via SignalR */
+  /** Refresh all values (scalars + table cells) from a live simulator via SignalR */
   async refreshValues(): Promise<void> {
     const deviceId = this.currentDeviceId();
     if (!deviceId || this.signalR.connectionState() !== 'connected') return;
@@ -96,16 +112,26 @@ export class MibPanelService {
       const values = await this.signalR.requestRefresh(deviceId);
       const current = this.schema();
       if (current && values) {
-        // Update scalar values in-place
         for (const module of current.modules) {
+          // Update scalars
           for (const field of module.scalars) {
             const oid = field.oid.endsWith('.0') ? field.oid : field.oid + '.0';
             if (values[oid] !== undefined) {
               field.currentValue = values[oid];
             }
           }
+          // Update table cells
+          for (const table of module.tables) {
+            for (const row of table.rows) {
+              for (const col of table.columns) {
+                const cellOid = col.oid + '.' + row.index;
+                if (values[cellOid] !== undefined && row.values[col.oid]) {
+                  row.values[col.oid].value = values[cellOid];
+                }
+              }
+            }
+          }
         }
-        // Trigger signal update (new reference)
         this.schema.set({ ...current });
       }
     } finally {
