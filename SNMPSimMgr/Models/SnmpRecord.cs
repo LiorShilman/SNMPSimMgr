@@ -15,6 +15,7 @@ public class QueryResultItem
     public string Time { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;
     public string Oid { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     public string ValueType { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public bool IsSuccess { get; set; }

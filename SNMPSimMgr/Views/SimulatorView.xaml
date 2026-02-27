@@ -52,10 +52,12 @@
                     <StackPanel Grid.Row="0" Grid.Column="5" Orientation="Horizontal">
                         <Button Content="Start Selected"
                                 Command="{Binding StartSimulatorCommand}"
-                                Style="{StaticResource SuccessButton}" Margin="0" Padding="10,6"/>
+                                Style="{StaticResource SuccessButton}" Margin="0" Padding="10,6"
+                                IsEnabled="{Binding IsSelectedDeviceSimulating, Converter={StaticResource InverseBoolConverter}}"/>
                         <Button Content="Stop Selected"
                                 Command="{Binding StopSimulatorCommand}"
-                                Style="{StaticResource DangerButton}" Margin="6,0,0,0" Padding="10,6"/>
+                                Style="{StaticResource DangerButton}" Margin="6,0,0,0" Padding="10,6"
+                                IsEnabled="{Binding IsSelectedDeviceSimulating}"/>
                         <Button Content="Stop All"
                                 Command="{Binding StopAllCommand}" Margin="6,0,0,0" Padding="10,6"/>
                     </StackPanel>
@@ -209,6 +211,7 @@
                         <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="80"/>
                         <DataGridTextColumn Header="OP" Binding="{Binding Operation}" Width="70"/>
                         <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="3*"/>
+                        <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
                         <DataGridTextColumn Header="TYPE" Binding="{Binding ValueType}" Width="120"/>
                         <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="5*"/>
                     </DataGrid.Columns>

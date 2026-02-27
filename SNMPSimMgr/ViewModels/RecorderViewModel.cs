@@ -12,9 +12,12 @@ public partial class RecorderViewModel : ObservableObject
     private readonly TrapListenerService _trapListener;
     private readonly DeviceProfileStore _store;
     private readonly DeviceListViewModel _deviceList;
+    private readonly MibStore _mibStore;
     private CancellationTokenSource? _walkCts;
     private CancellationTokenSource? _sessionCts;
     private RecordedSession? _currentSession;
+
+    public event Action? SessionSaved;
 
     public ObservableCollection<string> LogEntries { get; } = new();
     public ObservableCollection<TrapRecord> CapturedTraps { get; } = new();
@@ -42,12 +45,14 @@ public partial class RecorderViewModel : ObservableObject
         SnmpRecorderService recorder,
         TrapListenerService trapListener,
         DeviceProfileStore store,
-        DeviceListViewModel deviceList)
+        DeviceListViewModel deviceList,
+        MibStore mibStore)
     {
         _recorder = recorder;
         _trapListener = trapListener;
         _store = store;
         _deviceList = deviceList;
+        _mibStore = mibStore;
 
         _recorder.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
@@ -80,6 +85,26 @@ public partial class RecorderViewModel : ObservableObject
             }
         };
     }
+
+    /// <summary>Resolve OID to MibDefinition by trying exact match then stripping trailing segments.</summary>
+    private MibDefinition? ResolveOidDef(string oid)
+    {
+        if (_mibStore.LoadedOids.TryGetValue(oid, out var def))
+            return def;
+
+        var current = oid;
+        for (int i = 0; i < 3; i++)
+        {
+            var lastDot = current.LastIndexOf('.');
+            if (lastDot <= 0) break;
+            current = current[..lastDot];
+            if (_mibStore.LoadedOids.TryGetValue(current, out def))
+                return def;
+        }
+        return null;
+    }
+
+    private string ResolveOidName(string oid) => ResolveOidDef(oid)?.Name ?? "";
 
     public async Task RefreshSessionList()
     {
@@ -115,6 +140,9 @@ public partial class RecorderViewModel : ObservableObject
         OidCount = 0;
         _walkCts = new CancellationTokenSource();
 
+        // Load MIB definitions for OID name resolution
+        await _mibStore.LoadForDeviceAsync(device);
+
         try
         {
             var results = await _recorder.WalkDeviceAsync(device, _walkCts.Token);
@@ -131,6 +159,7 @@ public partial class RecorderViewModel : ObservableObject
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "WALK",
                     Oid = r.Oid,
+                    Name = ResolveOidName(r.Oid),
                     ValueType = r.ValueType,
                     Value = r.Value,
                     IsSuccess = true
@@ -215,6 +244,7 @@ public partial class RecorderViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = "GET",
                         Oid = result.Oid,
+                        Name = ResolveOidName(result.Oid),
                         ValueType = result.ValueType,
                         Value = result.Value,
                         IsSuccess = true
@@ -227,6 +257,7 @@ public partial class RecorderViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = "GET",
                         Oid = oids[0],
+                        Name = ResolveOidName(oids[0]),
                         Value = "No response",
                         IsSuccess = false
                     });
@@ -242,6 +273,7 @@ public partial class RecorderViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = "GET",
                         Oid = r.Oid,
+                        Name = ResolveOidName(r.Oid),
                         ValueType = r.ValueType,
                         Value = r.Value,
                         IsSuccess = true
@@ -303,6 +335,7 @@ public partial class RecorderViewModel : ObservableObject
                 Time = DateTime.Now.ToString("HH:mm:ss"),
                 Operation = "SET",
                 Oid = QueryOid,
+                Name = ResolveOidName(QueryOid),
                 ValueType = SetValueType,
                 Value = success ? SetValue : "SET failed",
                 IsSuccess = success
@@ -381,6 +414,9 @@ public partial class RecorderViewModel : ObservableObject
         SessionFrameCount = 0;
         _sessionCts = new CancellationTokenSource();
 
+        // Load MIB definitions for OID name resolution
+        await _mibStore.LoadForDeviceAsync(device);
+
         _currentSession = new RecordedSession
         {
             Name = SessionName,
@@ -417,6 +453,7 @@ public partial class RecorderViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = $"REC#{SessionFrameCount}",
                         Oid = r.Oid,
+                        Name = ResolveOidName(r.Oid),
                         ValueType = r.ValueType,
                         Value = r.Value,
                         IsSuccess = true
@@ -461,6 +498,7 @@ public partial class RecorderViewModel : ObservableObject
                 await _store.SaveSessionAsync(device, _currentSession);
                 LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Session '{_currentSession.Name}' saved — {_currentSession.Frames.Count} frames");
                 await RefreshSessionList();
+                SessionSaved?.Invoke();
             }
         }
 

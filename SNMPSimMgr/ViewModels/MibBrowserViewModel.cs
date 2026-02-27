@@ -366,6 +366,10 @@ public partial class MibBrowserViewModel : ObservableObject
         // Collapse scalar .0 instances — promote value to parent, remove the "0" child
         foreach (var root in RootNodes)
             CollapseScalarInstances(root);
+
+        // Expand all nodes by default
+        foreach (var root in RootNodes)
+            SetExpandedRecursive(root, true);
     }
 
     private void CollapseChains(OidTreeNode node)

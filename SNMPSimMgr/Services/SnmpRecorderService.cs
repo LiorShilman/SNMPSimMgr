@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using SnmpSharpNet;
 using SNMPSimMgr.Models;
 
@@ -10,6 +11,10 @@ public class SnmpRecorderService
 {
     private const int DefaultTimeout = 10000;
     private const int DefaultRetries = 2;
+    // Walk uses shorter timeout so cancellation (Stop & Save) responds quickly
+    // without needing to force-close the socket (which causes NRE in SnmpSharpNet)
+    private const int WalkTimeout = 2000;
+    private const int WalkRetries = 1;
 
     public event Action<string>? LogMessage;
     public event Action<int>? ProgressChanged;
@@ -67,12 +72,10 @@ public class SnmpRecorderService
 
     private void WalkV2c(DeviceProfile device, List<SnmpRecord> results, CancellationToken ct)
     {
+        // Use shorter timeout for walk so cancellation is responsive
+        // (no socket-close callback — avoids NRE inside SnmpSharpNet)
         var target = new UdpTarget(
-            ResolveAddress(device.IpAddress), device.Port, DefaultTimeout, DefaultRetries);
-
-        // Register cancellation callback to close the target immediately,
-        // interrupting any blocking Request() call
-        using var reg = ct.Register(() => { try { target.Close(); } catch { } });
+            ResolveAddress(device.IpAddress), device.Port, WalkTimeout, WalkRetries);
 
         var param = new AgentParameters(SnmpVersion.Ver2, new OctetString(device.Community));
         var rootOid = new Oid("1.3.6.1");
@@ -88,15 +91,10 @@ public class SnmpRecorderService
                 var pdu = new Pdu(PduType.GetNext);
                 pdu.VbList.Add(lastOid);
 
-                SnmpPacket? response;
-                try
-                {
-                    response = target.Request(pdu, param);
-                }
-                catch when (ct.IsCancellationRequested)
-                {
-                    throw new OperationCanceledException(ct);
-                }
+                var response = target.Request(pdu, param);
+
+                // Check cancellation after each request completes
+                ct.ThrowIfCancellationRequested();
 
                 if (response == null || response.Pdu.ErrorStatus != 0)
                     break;
@@ -129,9 +127,7 @@ public class SnmpRecorderService
     private void WalkV3(DeviceProfile device, List<SnmpRecord> results, CancellationToken ct)
     {
         var target = new UdpTarget(
-            ResolveAddress(device.IpAddress), device.Port, DefaultTimeout, DefaultRetries);
-
-        using var reg = ct.Register(() => { try { target.Close(); } catch { } });
+            ResolveAddress(device.IpAddress), device.Port, WalkTimeout, WalkRetries);
 
         var param = BuildV3Params(target, device);
 
@@ -148,15 +144,9 @@ public class SnmpRecorderService
                 var pdu = new ScopedPdu(PduType.GetNext);
                 pdu.VbList.Add(lastOid);
 
-                SnmpPacket? response;
-                try
-                {
-                    response = target.Request(pdu, param);
-                }
-                catch when (ct.IsCancellationRequested)
-                {
-                    throw new OperationCanceledException(ct);
-                }
+                var response = target.Request(pdu, param);
+
+                ct.ThrowIfCancellationRequested();
 
                 if (response == null || response.Pdu.ErrorStatus != 0)
                     break;

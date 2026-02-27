@@ -25,7 +25,7 @@ public partial class App : Application
 
         // Create ViewModels
         var deviceListVm = new DeviceListViewModel(store);
-        var recorderVm = new RecorderViewModel(recorder, trapListener, store, deviceListVm);
+        var recorderVm = new RecorderViewModel(recorder, trapListener, store, deviceListVm, mibStore);
         var simulatorVm = new SimulatorViewModel(store, trapGenerator, deviceListVm, recorder, mibStore);
         var demoService = new DemoDataService(store);
         var monitorVm = new NetworkMonitorViewModel(simulatorVm);
@@ -45,6 +45,9 @@ public partial class App : Application
         SnmpHub.DeviceListVm = deviceListVm;
         SnmpHub.MibStoreRef = mibStore;
         SnmpHub.TrapGen = trapGenerator;
+
+        // When Recorder saves a session, refresh Simulator's session list
+        recorderVm.SessionSaved += async () => await simulatorVm.RefreshSessionList();
 
         // Wire existing events → SignalR broadcasts
         simulatorVm.TrafficReceived += (deviceName, op, oid, val, sourceIp) =>

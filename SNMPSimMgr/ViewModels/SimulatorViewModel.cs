@@ -50,6 +50,7 @@ public partial class SimulatorViewModel : ObservableObject
     [ObservableProperty] private IddSimField? _selectedIddField;
     public ObservableCollection<IddSimField> IddFields { get; } = new();
     [ObservableProperty] private string? _selectedSessionName;
+    [ObservableProperty] private bool _isSelectedDeviceSimulating;
 
     public DeviceProfile? SelectedDevice => _deviceList.SelectedDevice;
 
@@ -74,9 +75,16 @@ public partial class SimulatorViewModel : ObservableObject
             if (e.PropertyName == nameof(DeviceListViewModel.SelectedDevice))
             {
                 OnPropertyChanged(nameof(SelectedDevice));
+                RefreshSelectedDeviceState();
                 await RefreshSessionList();
             }
         };
+    }
+
+    private void RefreshSelectedDeviceState()
+    {
+        var device = SelectedDevice;
+        IsSelectedDeviceSimulating = device != null && _simulators.ContainsKey(device.Id);
     }
 
     public async Task RefreshSessionList()
@@ -199,6 +207,7 @@ public partial class SimulatorViewModel : ObservableObject
         });
 
         SimulatorPort++; // Next device gets next port
+        RefreshSelectedDeviceState();
     }
 
     [RelayCommand]
@@ -217,6 +226,7 @@ public partial class SimulatorViewModel : ObservableObject
             if (status != null)
                 ActiveSimulators.Remove(status);
         }
+        RefreshSelectedDeviceState();
     }
 
     [RelayCommand]
@@ -230,6 +240,7 @@ public partial class SimulatorViewModel : ObservableObject
         _simulators.Clear();
         ActiveSimulators.Clear();
         LogEntries.Insert(0,"All simulators stopped.");
+        RefreshSelectedDeviceState();
     }
 
     /// <summary>
@@ -284,6 +295,7 @@ public partial class SimulatorViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = $"INJ#{frameNum}",
                         Oid = r.Oid,
+                        Name = ResolveOidName(r.Oid),
                         ValueType = r.ValueType,
                         Value = r.Value,
                         IsSuccess = true
@@ -351,6 +363,7 @@ public partial class SimulatorViewModel : ObservableObject
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "GET",
                     Oid = result.Oid,
+                    Name = ResolveOidName(result.Oid),
                     ValueType = result.ValueType,
                     Value = result.Value,
                     IsSuccess = true
@@ -374,6 +387,7 @@ public partial class SimulatorViewModel : ObservableObject
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "GET",
                     Oid = QueryOid,
+                    Name = ResolveOidName(QueryOid),
                     Value = "No response",
                     IsSuccess = false
                 });
@@ -412,6 +426,7 @@ public partial class SimulatorViewModel : ObservableObject
                 Time = DateTime.Now.ToString("HH:mm:ss"),
                 Operation = "SET",
                 Oid = QueryOid,
+                Name = ResolveOidName(QueryOid),
                 ValueType = SetValueType,
                 Value = success ? SetValue : "SET failed",
                 IsSuccess = success
@@ -440,6 +455,7 @@ public partial class SimulatorViewModel : ObservableObject
                         Time = DateTime.Now.ToString("HH:mm:ss"),
                         Operation = "VERIFY",
                         Oid = verify.Oid,
+                        Name = ResolveOidName(verify.Oid),
                         ValueType = verify.ValueType,
                         Value = verify.Value,
                         IsSuccess = true
@@ -492,6 +508,7 @@ public partial class SimulatorViewModel : ObservableObject
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "WALK",
                     Oid = r.Oid,
+                    Name = ResolveOidName(r.Oid),
                     ValueType = r.ValueType,
                     Value = r.Value,
                     IsSuccess = true
