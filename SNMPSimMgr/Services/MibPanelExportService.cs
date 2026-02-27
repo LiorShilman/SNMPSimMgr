@@ -93,6 +93,31 @@ public class MibPanelExportService
             }
         }
 
+        // MIB-structural table detection: use INDEX clauses on entry definitions
+        // to identify table columns even without Walk data.
+        // Entry defs have IndexParts (e.g., "piranhaSettingNumber"), and their
+        // children are columns that should be displayed as table fields.
+        var entryDefs = allDefs
+            .Where(d => !string.IsNullOrEmpty(d.IndexParts))
+            .ToDictionary(d => d.Name, d => d.Oid);
+
+        var reclassified = new List<MibDefinition>();
+        foreach (var def in scalarDefs)
+        {
+            if (def.ParentName != null && entryDefs.TryGetValue(def.ParentName, out var entryOid))
+            {
+                if (!tableColumns.ContainsKey(entryOid))
+                    tableColumns[entryOid] = new List<MibDefinition>();
+                if (!tableColumns[entryOid].Any(c => c.Oid == def.Oid))
+                {
+                    tableColumns[entryOid].Add(def);
+                    reclassified.Add(def);
+                }
+            }
+        }
+        foreach (var def in reclassified)
+            scalarDefs.Remove(def);
+
         // Infrastructure MIBs that only define base types/structure — not useful in panel
         var excludedModules = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
