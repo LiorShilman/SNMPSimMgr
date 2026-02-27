@@ -27,6 +27,10 @@ export class MibPanelService {
         const current = this.schema();
         if (!current) return;
 
+        // Ignore traffic from other devices
+        if (traffic.deviceName && current.deviceName &&
+            traffic.deviceName !== current.deviceName) return;
+
         const oid = traffic.oid;
         let updated = false;
 
