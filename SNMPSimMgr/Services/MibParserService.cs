@@ -33,8 +33,9 @@ public static class MibParserService
     };
 
     // Regex: captures name and ::= { parent index } assignment
+    // Allow leading whitespace (tabs/spaces) before the name — many vendor MIBs indent definitions
     private static readonly Regex AssignmentRegex = new(
-        @"^(\w[\w-]*)\s+(?:OBJECT-TYPE|OBJECT\s+IDENTIFIER|OBJECT-IDENTITY|MODULE-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP|AGENT-CAPABILITIES|TEXTUAL-CONVENTION)",
+        @"^\s*(\w[\w-]*)\s+(?:OBJECT-TYPE|OBJECT\s+IDENTIFIER|OBJECT-IDENTITY|MODULE-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP|AGENT-CAPABILITIES|TEXTUAL-CONVENTION)",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
     private static readonly Regex OidAssignRegex = new(
@@ -43,7 +44,7 @@ public static class MibParserService
 
     // Simpler form: name OBJECT IDENTIFIER ::= { parent index }
     private static readonly Regex SimpleOidRegex = new(
-        @"^(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{\s*(\w[\w-]*)\s+(\d+)\s*\}",
+        @"^\s*(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{\s*(\w[\w-]*)\s+(\d+)\s*\}",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
     // DESCRIPTION extraction
@@ -83,7 +84,7 @@ public static class MibParserService
 
     // Boundary: detects the start of the NEXT definition (to limit defRegion scope)
     private static readonly Regex NextDefinitionRegex = new(
-        @"\n\s*\w[\w-]*\s+(?:OBJECT-TYPE|OBJECT IDENTIFIER|MODULE-IDENTITY|OBJECT-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP)\b",
+        @"\n[ \t]*\w[\w-]*\s+(?:OBJECT-TYPE|OBJECT IDENTIFIER|MODULE-IDENTITY|OBJECT-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP)\b",
         RegexOptions.Compiled);
 
     // Syntax sub-patterns
