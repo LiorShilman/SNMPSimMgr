@@ -1,4 +1,4 @@
-import { Component, Input, inject, OnInit } from '@angular/core';
+import { Component, Input, inject, OnChanges } from '@angular/core';
 import { MibModuleSchema, MibFieldSchema } from '../../models/mib-schema';
 import { FieldClassifierService, ClassifiedScalars } from '../../services/field-classifier.service';
 import { StatusGridComponent } from '../status-grid/status-grid.component';
@@ -132,7 +132,7 @@ import { MibTableComponent } from '../mib-table/mib-table.component';
     }
   `]
 })
-export class ModuleSectionComponent implements OnInit {
+export class ModuleSectionComponent implements OnChanges {
   @Input({ required: true }) module!: MibModuleSchema;
 
   private classifier = inject(FieldClassifierService);
@@ -141,7 +141,7 @@ export class ModuleSectionComponent implements OnInit {
   classified: ClassifiedScalars = { identity: [], status: [], config: [], counters: [] };
   monitorFields: MibFieldSchema[] = [];
 
-  ngOnInit(): void {
+  ngOnChanges(): void {
     this.classified = this.classifier.classifyScalars(this.module.scalars);
     this.monitorFields = [...this.classified.status, ...this.classified.counters];
   }

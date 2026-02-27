@@ -58,11 +58,11 @@ export class SignalRService {
   // Connection state
   connectionState = signal<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
 
-  // Event signals — components can use effect() or computed() to react
-  latestTraffic = signal<TrafficEvent | null>(null);
-  latestTrap = signal<TrapEvent | null>(null);
-  latestDeviceStatus = signal<DeviceStatusEvent | null>(null);
-  latestMibUpdate = signal<MibUpdateEvent | null>(null);
+  // Event signals — always notify (never skip), since these are event streams
+  latestTraffic = signal<TrafficEvent | null>(null, { equal: () => false });
+  latestTrap = signal<TrapEvent | null>(null, { equal: () => false });
+  latestDeviceStatus = signal<DeviceStatusEvent | null>(null, { equal: () => false });
+  latestMibUpdate = signal<MibUpdateEvent | null>(null, { equal: () => false });
 
   private serverUrl = 'http://localhost:5050';
 

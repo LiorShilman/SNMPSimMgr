@@ -57,7 +57,7 @@ export class MibPanelService {
         }
 
         if (updated) {
-          this.schema.set({ ...current });
+          this.emitSchema(current);
         }
       });
     });
@@ -132,14 +132,14 @@ export class MibPanelService {
             }
           }
         }
-        this.schema.set({ ...current });
+        this.emitSchema(current);
       }
     } finally {
       this.isLoading.set(false);
     }
   }
 
-  /** Send an SNMP SET — real via SignalR if connected, mock fallback otherwise */
+  /** Send an SNMP/IDD SET — real via SignalR if connected, mock fallback otherwise */
   sendSet(oid: string, name: string, value: string, valueType: string): void {
     const feedback: SetFeedback = {
       id: ++this.feedbackId,
@@ -154,15 +154,19 @@ export class MibPanelService {
     this.feedbacks.update(list => [feedback, ...list]);
 
     const deviceId = this.currentDeviceId();
-    if (deviceId && this.signalR.connectionState() === 'connected') {
-      // Detect IDD fields: OID starts with a letter (not a digit) → route to IDD SET
-      const isIdd = oid.length > 0 && !/^\d/.test(oid);
+    const isConnected = this.signalR.connectionState() === 'connected';
+    const isIdd = oid.length > 0 && !/^\d/.test(oid);
+
+    if (isConnected && (deviceId || isIdd)) {
+      // Real SignalR call — IDD uses field ID even without a deviceId
+      const effectiveDeviceId = deviceId || 'idd-local';
       const setPromise = isIdd
-        ? this.signalR.sendIddSet(deviceId, oid, value)
-        : this.signalR.sendSet(deviceId, oid, value, valueType);
+        ? this.signalR.sendIddSet(effectiveDeviceId, oid, value)
+        : this.signalR.sendSet(effectiveDeviceId, oid, value, valueType);
 
       setPromise
         .then(result => {
+          if (result.success) this.updateFieldValue(oid, value);
           this.feedbacks.update(list =>
             list.map(f =>
               f.id === feedback.id
@@ -183,6 +187,7 @@ export class MibPanelService {
     } else {
       // Fallback: simulate (for file-loaded schemas or disconnected state)
       setTimeout(() => {
+        this.updateFieldValue(oid, value);
         this.feedbacks.update(list =>
           list.map(f =>
             f.id === feedback.id
@@ -197,6 +202,42 @@ export class MibPanelService {
     setTimeout(() => {
       this.feedbacks.update(list => list.filter(f => f.id !== feedback.id));
     }, 8000);
+  }
+
+  /** Update a field value in the schema after a successful SET */
+  private updateFieldValue(oid: string, value: string): void {
+    const current = this.schema();
+    if (!current) return;
+
+    let updated = false;
+    for (const module of current.modules) {
+      for (const field of module.scalars) {
+        const fieldOid = field.oid.endsWith('.0') ? field.oid : field.oid + '.0';
+        if (fieldOid === oid || field.oid === oid) {
+          field.currentValue = value;
+          updated = true;
+        }
+      }
+    }
+    if (updated) {
+      this.emitSchema(current);
+    }
+  }
+
+  /** Create a new schema object with new references at all levels so Angular detects changes */
+  private emitSchema(s: MibPanelSchema): void {
+    this.schema.set({
+      ...s,
+      modules: s.modules.map(m => ({
+        ...m,
+        scalars: m.scalars.map(f => ({ ...f })),
+        tables: m.tables.map(t => ({
+          ...t,
+          columns: t.columns.map(c => ({ ...c })),
+          rows: t.rows.map(r => ({ ...r, values: { ...r.values } }))
+        }))
+      }))
+    });
   }
 
   /** Map inputType to SNMP value type for SET */

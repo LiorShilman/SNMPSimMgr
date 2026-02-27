@@ -30,7 +30,9 @@ export class ConfigGroupComponent {
 
   sendSet(field: MibFieldSchema): void {
     const valueType = this.panelService.resolveValueType(field.inputType, field.baseType);
-    this.panelService.sendSet(field.oid + '.0', field.name, this.editValue, valueType);
+    // IDD fields (non-numeric OID) don't need .0 suffix; SNMP scalars do
+    const setOid = /^\d/.test(field.oid) ? field.oid + '.0' : field.oid;
+    this.panelService.sendSet(setOid, field.name, this.editValue, valueType);
     field.currentValue = this.editValue;
     this.editingOid = null;
   }

@@ -43,6 +43,12 @@ public partial class SimulatorViewModel : ObservableObject
     [ObservableProperty] private bool _isQuerying;
     [ObservableProperty] private bool _isInjecting;
     [ObservableProperty] private string _injectionStatus = "";
+
+    // IDD Simulate
+    [ObservableProperty] private string _iddFieldId = "";
+    [ObservableProperty] private string _iddFieldValue = "";
+    [ObservableProperty] private IddSimField? _selectedIddField;
+    public ObservableCollection<IddSimField> IddFields { get; } = new();
     [ObservableProperty] private string? _selectedSessionName;
 
     public DeviceProfile? SelectedDevice => _deviceList.SelectedDevice;
@@ -581,6 +587,98 @@ public partial class SimulatorViewModel : ObservableObject
         if (!string.IsNullOrEmpty(item.Value))
             SetValue = item.Value;
     }
+
+    /// <summary>When selected IDD field changes, populate the ID and value fields.</summary>
+    partial void OnSelectedIddFieldChanged(IddSimField? value)
+    {
+        if (value == null) return;
+        IddFieldId = value.FieldId;
+        IddFieldValue = value.CurrentValue;
+    }
+
+    /// <summary>Load an IDD panel JSON file and populate the field list.</summary>
+    [RelayCommand]
+    private void LoadIddJson()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json",
+            Title = "Load IDD Panel JSON"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var json = System.IO.File.ReadAllText(dlg.FileName);
+            var schema = Newtonsoft.Json.JsonConvert.DeserializeObject<Models.MibPanelSchema>(json);
+            if (schema?.Modules == null) return;
+
+            IddFields.Clear();
+            foreach (var module in schema.Modules)
+            foreach (var field in module.Scalars)
+            {
+                IddFields.Add(new IddSimField
+                {
+                    FieldId = field.Oid,
+                    Name = field.Name,
+                    Module = module.ModuleName,
+                    CurrentValue = field.CurrentValue ?? "",
+                    InputType = field.InputType,
+                    IsWritable = field.IsWritable
+                });
+            }
+
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD loaded: {IddFields.Count} fields from {System.IO.Path.GetFileName(dlg.FileName)}");
+
+            if (IddFields.Count > 0)
+                SelectedIddField = IddFields[0];
+        }
+        catch (Exception ex)
+        {
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD load error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Broadcast an IDD field update to all connected Angular clients.
+    /// Also updates the local field list value.
+    /// </summary>
+    [RelayCommand]
+    private void BroadcastIddUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(IddFieldId)) return;
+
+        Hubs.SnmpHub.BroadcastTraffic("IDD", "SET", IddFieldId, IddFieldValue, "localhost");
+
+        // Update the value in the local field list
+        var field = IddFields.FirstOrDefault(f => f.FieldId == IddFieldId);
+        if (field != null) field.CurrentValue = IddFieldValue;
+
+        App.Current.Dispatcher.Invoke(() =>
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD Broadcast: {IddFieldId} = {IddFieldValue}"));
+    }
+}
+
+/// <summary>Represents an IDD field for the WPF IDD simulator UI.</summary>
+public class IddSimField : ObservableObject
+{
+    public string FieldId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Module { get; set; } = string.Empty;
+    public string InputType { get; set; } = "text";
+    public bool IsWritable { get; set; }
+
+    private string _currentValue = "";
+    public string CurrentValue
+    {
+        get => _currentValue;
+        set => SetProperty(ref _currentValue, value);
+    }
+
+    /// <summary>Display text for the ComboBox.</summary>
+    public string DisplayText => $"[{Module}] {Name}  ({FieldId})";
+
+    public override string ToString() => DisplayText;
 }
 
 public class SimulatorDeviceStatus

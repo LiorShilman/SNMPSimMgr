@@ -73,6 +73,20 @@ public partial class App : Application
             }
         };
 
+        // IDD SET handler — log + broadcast updated value back to Angular
+        simulatorVm.IddSetRequested += (deviceId, fieldId, value) =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[IDD SET] device={deviceId}, field={fieldId}, value={value}");
+            Current.Dispatcher.Invoke(() =>
+                simulatorVm.LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] IDD SET: {fieldId} = {value} (device: {deviceId})"));
+
+            // TODO: Here you would send the IDD command to your hardware.
+            //       After the hardware confirms, broadcast the new value back to Angular:
+
+            if (_signalRService != null && _signalRService.IsRunning)
+                SnmpHub.BroadcastTraffic("IDD", "SET", fieldId, value, "localhost");
+        };
+
         // Start SignalR server (non-fatal if it fails)
         string signalRStatus;
         try
