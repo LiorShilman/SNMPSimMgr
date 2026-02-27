@@ -193,6 +193,31 @@ public class SnmpHub : Hub
         return result;
     }
 
+    /// <summary>Send an IDD SET (non-SNMP) to WPF for handling.</summary>
+    public Task<SetResult> SendIddSet(string deviceId, string fieldId, string value)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[SnmpHub] SendIddSet: device={deviceId}, field={fieldId}, value={value}");
+
+            if (SimulatorVm == null)
+                return Task.FromResult(new SetResult { Success = false, Message = "SimulatorVM not initialized" });
+
+            // Fire event — WPF handles the actual IDD communication
+            SimulatorVm.RaiseIddSet(deviceId, fieldId, value);
+
+            return Task.FromResult(new SetResult
+            {
+                Success = true,
+                Message = "IDD SET dispatched"
+            });
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(new SetResult { Success = false, Message = ex.Message });
+        }
+    }
+
     /// <summary>List all known devices with their simulator status.</summary>
     public async Task<List<DeviceInfo>> GetDevices()
     {

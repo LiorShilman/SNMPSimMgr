@@ -93,12 +93,21 @@ public class MibPanelExportService
             }
         }
 
+        // Infrastructure MIBs that only define base types/structure — not useful in panel
+        var excludedModules = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SNMPv2-SMI", "SNMPv2-TC", "SNMPv2-CONF", "SNMPv2-MIB",
+            "RFC1155-SMI", "RFC1213-MIB", "RFC-1212", "RFC-1215",
+            "IANAifType-MIB", "IF-MIB", "INET-ADDRESS-MIB"
+        };
+
         // Group by module
         var moduleGroups = new Dictionary<string, (List<MibDefinition> scalars, Dictionary<string, List<MibDefinition>> tables)>();
 
         foreach (var def in scalarDefs)
         {
             var mod = def.ModuleName ?? "Unknown";
+            if (excludedModules.Contains(mod)) continue;
             if (!moduleGroups.ContainsKey(mod))
                 moduleGroups[mod] = (new List<MibDefinition>(), new Dictionary<string, List<MibDefinition>>());
             moduleGroups[mod].scalars.Add(def);
@@ -108,6 +117,7 @@ public class MibPanelExportService
         {
             var firstDef = kvp.Value.First();
             var mod = firstDef.ModuleName ?? "Unknown";
+            if (excludedModules.Contains(mod)) continue;
             if (!moduleGroups.ContainsKey(mod))
                 moduleGroups[mod] = (new List<MibDefinition>(), new Dictionary<string, List<MibDefinition>>());
             moduleGroups[mod].tables[kvp.Key] = kvp.Value;

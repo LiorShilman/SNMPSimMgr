@@ -187,6 +187,11 @@ export class SignalRService {
     return this.hubProxy.invoke('SendSet', deviceId, oid, value, valueType);
   }
 
+  async sendIddSet(deviceId: string, fieldId: string, value: string): Promise<SetResult> {
+    this.ensureConnected();
+    return this.hubProxy.invoke('SendIddSet', deviceId, fieldId, value);
+  }
+
   async requestRefresh(deviceId: string): Promise<Record<string, string>> {
     this.ensureConnected();
     return this.hubProxy.invoke('RequestRefresh', deviceId);

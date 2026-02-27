@@ -18,6 +18,13 @@ public partial class SimulatorViewModel : ObservableObject
     private readonly ConcurrentDictionary<string, SnmpSimulatorService> _simulators = new();
 
     public event Action<string, string, string, string, string>? TrafficReceived; // deviceName, op, oid, val, sourceIp
+    public event Action<string, string, string>? IddSetRequested; // deviceId, fieldId, value
+
+    /// <summary>Called from SnmpHub to dispatch IDD SET to WPF handlers.</summary>
+    public void RaiseIddSet(string deviceId, string fieldId, string value)
+    {
+        IddSetRequested?.Invoke(deviceId, fieldId, value);
+    }
 
     public ObservableCollection<string> LogEntries { get; } = new();
     public ObservableCollection<SimulatorDeviceStatus> ActiveSimulators { get; } = new();

@@ -1,0 +1,249 @@
+{
+  "deviceName": "IDD Device Example",
+  "deviceIp": "192.168.1.100",
+  "devicePort": 0,
+  "community": "",
+  "snmpVersion": "",
+  "exportedAt": "2026-02-27T00:00:00Z",
+  "totalFields": 18,
+  "modules": [
+    {
+      "moduleName": "Device Identity",
+      "scalarCount": 5,
+      "tableCount": 0,
+      "scalars": [
+        {
+          "oid": "idd.info.hostname",
+          "name": "Hostname",
+          "description": "Device hostname",
+          "inputType": "text",
+          "baseType": "text",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "Router-Lab-1",
+          "maxLength": 64
+        },
+        {
+          "oid": "idd.info.model",
+          "name": "Model",
+          "description": "Hardware model identifier",
+          "inputType": "text",
+          "baseType": "text",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "RTX-5000"
+        },
+        {
+          "oid": "idd.info.firmware",
+          "name": "Firmware Version",
+          "inputType": "text",
+          "baseType": "text",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "3.2.1-build.1847"
+        },
+        {
+          "oid": "idd.info.serial",
+          "name": "Serial Number",
+          "inputType": "text",
+          "baseType": "text",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "SN-2026-X9K4M2"
+        },
+        {
+          "oid": "idd.info.uptime",
+          "name": "Uptime",
+          "inputType": "timeticks",
+          "baseType": "TimeTicks",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "8654321"
+        }
+      ],
+      "tables": []
+    },
+    {
+      "moduleName": "Network Configuration",
+      "scalarCount": 5,
+      "tableCount": 0,
+      "scalars": [
+        {
+          "oid": "idd.net.ip",
+          "name": "IP Address",
+          "description": "Management IP address",
+          "inputType": "ip",
+          "baseType": "text",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "192.168.1.100"
+        },
+        {
+          "oid": "idd.net.mask",
+          "name": "Subnet Mask",
+          "inputType": "ip",
+          "baseType": "text",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "255.255.255.0"
+        },
+        {
+          "oid": "idd.net.gateway",
+          "name": "Default Gateway",
+          "inputType": "ip",
+          "baseType": "text",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "192.168.1.1"
+        },
+        {
+          "oid": "idd.net.dhcp",
+          "name": "DHCP Enabled",
+          "description": "Enable/disable DHCP client",
+          "inputType": "toggle",
+          "baseType": "INTEGER",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "0",
+          "options": [
+            { "label": "Disabled", "value": 0 },
+            { "label": "Enabled", "value": 1 }
+          ]
+        },
+        {
+          "oid": "idd.net.link",
+          "name": "Link Status",
+          "inputType": "enum",
+          "baseType": "INTEGER",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "1",
+          "options": [
+            { "label": "Down", "value": 0 },
+            { "label": "Up", "value": 1 },
+            { "label": "Testing", "value": 2 }
+          ]
+        }
+      ],
+      "tables": []
+    },
+    {
+      "moduleName": "Status & Monitoring",
+      "scalarCount": 5,
+      "tableCount": 0,
+      "scalars": [
+        {
+          "oid": "idd.status.operState",
+          "name": "Oper State",
+          "inputType": "enum",
+          "baseType": "INTEGER",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "1",
+          "options": [
+            { "label": "Offline", "value": 0 },
+            { "label": "Running", "value": 1 },
+            { "label": "Standby", "value": 2 },
+            { "label": "Error", "value": 3 }
+          ]
+        },
+        {
+          "oid": "idd.status.cpuUsage",
+          "name": "CPU Usage",
+          "inputType": "gauge",
+          "baseType": "Gauge32",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "45",
+          "units": "%",
+          "minValue": 0,
+          "maxValue": 100
+        },
+        {
+          "oid": "idd.status.memUsage",
+          "name": "Memory Usage",
+          "inputType": "gauge",
+          "baseType": "Gauge32",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "2048",
+          "units": "MB",
+          "minValue": 0,
+          "maxValue": 8192
+        },
+        {
+          "oid": "idd.status.temperature",
+          "name": "Temperature",
+          "inputType": "number",
+          "baseType": "INTEGER",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "42",
+          "units": "°C",
+          "minValue": -20,
+          "maxValue": 85
+        },
+        {
+          "oid": "idd.status.alarmCount",
+          "name": "Active Alarms",
+          "inputType": "number",
+          "baseType": "INTEGER",
+          "access": "read-only",
+          "isWritable": false,
+          "currentValue": "0"
+        }
+      ],
+      "tables": []
+    },
+    {
+      "moduleName": "Control",
+      "scalarCount": 3,
+      "tableCount": 0,
+      "scalars": [
+        {
+          "oid": "idd.ctrl.logLevel",
+          "name": "Log Level",
+          "description": "System logging verbosity",
+          "inputType": "enum",
+          "baseType": "INTEGER",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "3",
+          "options": [
+            { "label": "Emergency", "value": 0 },
+            { "label": "Error", "value": 1 },
+            { "label": "Warning", "value": 2 },
+            { "label": "Info", "value": 3 },
+            { "label": "Debug", "value": 4 }
+          ]
+        },
+        {
+          "oid": "idd.ctrl.maxConn",
+          "name": "Max Connections",
+          "description": "Maximum concurrent connections",
+          "inputType": "number",
+          "baseType": "INTEGER",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "100",
+          "minValue": 1,
+          "maxValue": 10000
+        },
+        {
+          "oid": "idd.ctrl.timeout",
+          "name": "Session Timeout",
+          "description": "Session timeout in seconds",
+          "inputType": "number",
+          "baseType": "INTEGER",
+          "access": "read-write",
+          "isWritable": true,
+          "currentValue": "300",
+          "units": "sec",
+          "minValue": 30,
+          "maxValue": 3600
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

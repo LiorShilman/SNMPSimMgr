@@ -155,8 +155,13 @@ export class MibPanelService {
 
     const deviceId = this.currentDeviceId();
     if (deviceId && this.signalR.connectionState() === 'connected') {
-      // Real SignalR call
-      this.signalR.sendSet(deviceId, oid, value, valueType)
+      // Detect IDD fields: OID starts with a letter (not a digit) → route to IDD SET
+      const isIdd = oid.length > 0 && !/^\d/.test(oid);
+      const setPromise = isIdd
+        ? this.signalR.sendIddSet(deviceId, oid, value)
+        : this.signalR.sendSet(deviceId, oid, value, valueType);
+
+      setPromise
         .then(result => {
           this.feedbacks.update(list =>
             list.map(f =>
