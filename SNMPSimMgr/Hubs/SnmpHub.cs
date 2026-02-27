@@ -23,6 +23,7 @@ public class SnmpHub : Hub
     public static SimulatorViewModel? SimulatorVm { get; set; }
     public static DeviceListViewModel? DeviceListVm { get; set; }
     public static MibStore? MibStoreRef { get; set; }
+    public static TrapGeneratorService? TrapGen { get; set; }
 
     // ── Schema cache ─────────────────────────────────────────────────
     // Avoids re-parsing MIBs and rebuilding the schema on every device switch.
@@ -81,6 +82,74 @@ public class SnmpHub : Hub
         {
             return new SetResult { Success = false, Message = ex.Message };
         }
+    }
+
+    /// <summary>Send multiple SNMP SETs in batch to a running simulator.</summary>
+    public async Task<BulkSetResult> SendBulkSet(string deviceId, List<BulkSetItem> items)
+    {
+        var result = new BulkSetResult { Total = items?.Count ?? 0 };
+        try
+        {
+            if (Store == null || Recorder == null)
+            {
+                result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = "Services not initialized" });
+                return result;
+            }
+
+            var profiles = await Store.LoadProfilesAsync();
+            var device = profiles.FirstOrDefault(d => d.Id == deviceId);
+            if (device == null)
+            {
+                result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = $"Device {deviceId} not found" });
+                return result;
+            }
+
+            var sim = SimulatorVm?.ActiveSimulators.FirstOrDefault(s => s.DeviceId == deviceId);
+            if (sim == null)
+            {
+                result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = "Simulator not running" });
+                return result;
+            }
+
+            var target = new DeviceProfile
+            {
+                IpAddress = "127.0.0.1",
+                Port = sim.Port,
+                Version = SnmpVersionOption.V2c,
+                Community = device.Community
+            };
+
+            foreach (var item in items ?? new List<BulkSetItem>())
+            {
+                try
+                {
+                    var success = await Recorder.SetAsync(target, item.Oid, item.Value, item.ValueType);
+                    result.Results.Add(new BulkSetItemResult
+                    {
+                        Oid = item.Oid,
+                        Success = success,
+                        Message = success ? "OK" : "SET failed"
+                    });
+                    if (success) result.Succeeded++;
+                    else result.Failed++;
+                }
+                catch (Exception ex)
+                {
+                    result.Results.Add(new BulkSetItemResult
+                    {
+                        Oid = item.Oid,
+                        Success = false,
+                        Message = ex.Message
+                    });
+                    result.Failed++;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = ex.Message });
+        }
+        return result;
     }
 
     /// <summary>Build and return a full MIB panel schema for a device.</summary>
@@ -285,6 +354,73 @@ public class SnmpHub : Hub
         }).ToList();
     }
 
+    /// <summary>Send a trap to a target manager from the Angular UI.</summary>
+    public async Task<SetResult> SendTrap(string trapOid, string targetIp, int targetPort, List<TrapBinding> bindings)
+    {
+        try
+        {
+            if (TrapGen == null)
+                return new SetResult { Success = false, Message = "TrapGeneratorService not initialized" };
+
+            var trap = new Models.TrapRecord
+            {
+                Oid = trapOid,
+                SourceIp = "127.0.0.1",
+                Timestamp = DateTime.UtcNow,
+                VariableBindings = (bindings ?? new List<TrapBinding>())
+                    .Select(b => new Models.SnmpRecord
+                    {
+                        Oid = b.Oid,
+                        Value = b.Value,
+                        ValueType = b.ValueType
+                    }).ToList()
+            };
+
+            await TrapGen.SendTrapAsync(trap, targetIp, targetPort);
+            return new SetResult { Success = true, Message = $"Trap sent to {targetIp}:{targetPort}" };
+        }
+        catch (Exception ex)
+        {
+            return new SetResult { Success = false, Message = ex.Message };
+        }
+    }
+
+    /// <summary>Validate MIB files for a device — returns per-file issues.</summary>
+    public async Task<MibValidationResult> ValidateMib(string deviceId)
+    {
+        try
+        {
+            if (Store == null)
+                return new MibValidationResult { DeviceName = deviceId };
+
+            var profiles = await Store.LoadProfilesAsync();
+            var device = profiles.FirstOrDefault(d => d.Id == deviceId);
+            if (device == null)
+            {
+                var notFound = new MibValidationResult { DeviceName = deviceId };
+                notFound.Files.Add(new MibFileValidation
+                {
+                    FileName = "(device)",
+                    Issues = { new MibValidationIssue { Severity = "error", Message = $"Device {deviceId} not found" } }
+                });
+                return notFound;
+            }
+
+            var filePaths = device.MibFilePaths ?? new List<string>();
+            return MibParserService.ValidateMultiple(filePaths, device.Name);
+        }
+        catch (Exception ex)
+        {
+            var errResult = new MibValidationResult { DeviceName = deviceId };
+            errResult.Files.Add(new MibFileValidation
+            {
+                FileName = "(error)",
+                Issues = { new MibValidationIssue { Severity = "error", Message = ex.Message, Context = ex.GetType().Name } }
+            });
+            return errResult;
+        }
+    }
+
     // ── Connection lifecycle ────────────────────────────────────────
 
     public override Task OnConnected()
@@ -387,4 +523,128 @@ public class DeviceInfo
 
     [JsonProperty("simulatorPort")]
     public int SimulatorPort { get; set; }
+}
+
+// ── Bulk SET DTOs ────────────────────────────────────────────
+
+public class BulkSetItem
+{
+    [JsonProperty("oid")]
+    public string Oid { get; set; } = string.Empty;
+
+    [JsonProperty("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [JsonProperty("valueType")]
+    public string ValueType { get; set; } = "OctetString";
+}
+
+public class BulkSetResult
+{
+    [JsonProperty("total")]
+    public int Total { get; set; }
+
+    [JsonProperty("succeeded")]
+    public int Succeeded { get; set; }
+
+    [JsonProperty("failed")]
+    public int Failed { get; set; }
+
+    [JsonProperty("results")]
+    public List<BulkSetItemResult> Results { get; set; } = new();
+}
+
+public class BulkSetItemResult
+{
+    [JsonProperty("oid")]
+    public string Oid { get; set; } = string.Empty;
+
+    [JsonProperty("success")]
+    public bool Success { get; set; }
+
+    [JsonProperty("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
+// ── Trap Generator DTO ───────────────────────────────────────
+
+public class TrapBinding
+{
+    [JsonProperty("oid")]
+    public string Oid { get; set; } = string.Empty;
+
+    [JsonProperty("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [JsonProperty("valueType")]
+    public string ValueType { get; set; } = "OctetString";
+}
+
+// ── MIB Validation DTOs ──────────────────────────────────────
+
+public class MibValidationResult
+{
+    [JsonProperty("deviceName")]
+    public string DeviceName { get; set; } = string.Empty;
+
+    [JsonProperty("files")]
+    public List<MibFileValidation> Files { get; set; } = new();
+
+    [JsonProperty("dependencies")]
+    public List<MibFileDependencies> Dependencies { get; set; } = new();
+}
+
+public class MibFileValidation
+{
+    [JsonProperty("fileName")]
+    public string FileName { get; set; } = string.Empty;
+
+    [JsonProperty("definitionCount")]
+    public int DefinitionCount { get; set; }
+
+    [JsonProperty("issueCount")]
+    public int IssueCount { get; set; }
+
+    [JsonProperty("issues")]
+    public List<MibValidationIssue> Issues { get; set; } = new();
+}
+
+public class MibValidationIssue
+{
+    [JsonProperty("severity")]
+    public string Severity { get; set; } = string.Empty;
+
+    [JsonProperty("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonProperty("context")]
+    public string Context { get; set; } = string.Empty;
+}
+
+// ── MIB Dependency DTOs ─────────────────────────────────────
+
+public class MibFileDependencies
+{
+    [JsonProperty("fileName")]
+    public string FileName { get; set; } = string.Empty;
+
+    [JsonProperty("moduleName")]
+    public string ModuleName { get; set; } = string.Empty;
+
+    [JsonProperty("imports")]
+    public List<MibDependency> Imports { get; set; } = new();
+}
+
+public class MibDependency
+{
+    [JsonProperty("moduleName")]
+    public string ModuleName { get; set; } = string.Empty;
+
+    /// <summary>"loaded" | "standard" | "missing"</summary>
+    [JsonProperty("status")]
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>File name that provides this module (when status == "loaded")</summary>
+    [JsonProperty("providedBy")]
+    public string ProvidedBy { get; set; } = string.Empty;
 }

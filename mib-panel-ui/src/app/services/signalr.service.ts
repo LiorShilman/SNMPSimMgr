@@ -46,6 +46,62 @@ export interface SetResult {
   message: string;
 }
 
+export interface TrapBinding {
+  oid: string;
+  value: string;
+  valueType: string;
+}
+
+export interface BulkSetItem {
+  oid: string;
+  value: string;
+  valueType: string;
+}
+
+export interface BulkSetResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkSetItemResult[];
+}
+
+export interface BulkSetItemResult {
+  oid: string;
+  success: boolean;
+  message: string;
+}
+
+export interface MibValidationResult {
+  deviceName: string;
+  files: MibFileValidation[];
+  dependencies: MibFileDependencies[];
+}
+
+export interface MibFileDependencies {
+  fileName: string;
+  moduleName: string;
+  imports: MibDependency[];
+}
+
+export interface MibDependency {
+  moduleName: string;
+  status: 'loaded' | 'standard' | 'missing';
+  providedBy: string;
+}
+
+export interface MibFileValidation {
+  fileName: string;
+  definitionCount: number;
+  issueCount: number;
+  issues: MibValidationIssue[];
+}
+
+export interface MibValidationIssue {
+  severity: string;
+  message: string;
+  context: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SignalRService {
   private zone = inject(NgZone);
@@ -187,6 +243,11 @@ export class SignalRService {
     return this.hubProxy.invoke('SendSet', deviceId, oid, value, valueType);
   }
 
+  async sendBulkSet(deviceId: string, items: BulkSetItem[]): Promise<BulkSetResult> {
+    this.ensureConnected();
+    return this.hubProxy.invoke('SendBulkSet', deviceId, items);
+  }
+
   async sendIddSet(deviceId: string, fieldId: string, value: string): Promise<SetResult> {
     this.ensureConnected();
     return this.hubProxy.invoke('SendIddSet', deviceId, fieldId, value);
@@ -208,6 +269,16 @@ export class SignalRService {
   async getDevices(): Promise<DeviceInfo[]> {
     this.ensureConnected();
     return this.hubProxy.invoke('GetDevices');
+  }
+
+  async sendTrap(trapOid: string, targetIp: string, targetPort: number, bindings: TrapBinding[]): Promise<SetResult> {
+    this.ensureConnected();
+    return this.hubProxy.invoke('SendTrap', trapOid, targetIp, targetPort, bindings);
+  }
+
+  async validateMib(deviceId: string): Promise<MibValidationResult> {
+    this.ensureConnected();
+    return this.hubProxy.invoke('ValidateMib', deviceId);
   }
 
   private ensureConnected(): void {

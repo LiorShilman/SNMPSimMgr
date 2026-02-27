@@ -9,10 +9,14 @@ import { DeviceCardComponent } from './components/device-card/device-card.compon
 import { SystemInfoComponent } from './components/system-info/system-info.component';
 import { ConnectionStatusComponent } from './components/connection-status/connection-status.component';
 import { HelpGuideComponent } from './components/help-guide/help-guide.component';
+import { TrapViewerComponent } from './components/trap-viewer/trap-viewer.component';
+import { MibValidatorComponent } from './components/mib-validator/mib-validator.component';
+import { TrapGeneratorComponent } from './components/trap-generator/trap-generator.component';
+import { BulkSetComponent } from './components/bulk-set/bulk-set.component';
 
 @Component({
   selector: 'app-root',
-  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent, ConnectionStatusComponent, HelpGuideComponent],
+  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent, ConnectionStatusComponent, HelpGuideComponent, TrapViewerComponent, MibValidatorComponent, TrapGeneratorComponent, BulkSetComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -80,6 +84,10 @@ export class App {
 
   isPanelOpen = false;
   isGuideOpen = false;
+  isTrapViewerOpen = false;
+  isValidatorOpen = false;
+  isTrapGenOpen = false;
+  isBulkSetOpen = false;
   isDragging = false;
 
   constructor() {

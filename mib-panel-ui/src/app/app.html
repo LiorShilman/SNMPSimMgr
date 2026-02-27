@@ -20,7 +20,19 @@
         <input type="file" accept=".json" (change)="onFileSelected($event)" hidden>
         Load JSON
       </label>
+      <button type="button" class="btn-traps" title="Trap Viewer" (click)="isTrapViewerOpen = !isTrapViewerOpen">
+        &#9888; Traps
+      </button>
+      <button type="button" class="btn-trapgen" title="Send Trap" (click)="isTrapGenOpen = true">
+        &#9889; Send Trap
+      </button>
       @if (schema()) {
+        <button type="button" class="btn-bulkset" title="Bulk SET / Config Import" (click)="isBulkSetOpen = true">
+          &#9776; Bulk SET
+        </button>
+        <button type="button" class="btn-validate" title="Validate MIB files" (click)="isValidatorOpen = true">
+          &#9745; Validate
+        </button>
         <button type="button" class="btn-open-panel" (click)="isPanelOpen = true">
           Open Panel &#9656;
         </button>
@@ -146,8 +158,31 @@
     }
   </app-side-panel>
 
+  <!-- Trap Viewer -->
+  @if (isTrapViewerOpen) {
+    <div class="trap-viewer-overlay" (click)="isTrapViewerOpen = false"></div>
+    <div class="trap-viewer-container">
+      <app-trap-viewer />
+    </div>
+  }
+
   <!-- SET Feedback Toasts -->
   <app-set-feedback />
+
+  <!-- Trap Generator Dialog -->
+  @if (isTrapGenOpen) {
+    <app-trap-generator (close)="isTrapGenOpen = false" />
+  }
+
+  <!-- Bulk SET Dialog -->
+  @if (isBulkSetOpen) {
+    <app-bulk-set (close)="isBulkSetOpen = false" />
+  }
+
+  <!-- MIB Validator Dialog -->
+  @if (isValidatorOpen) {
+    <app-mib-validator (close)="isValidatorOpen = false" />
+  }
 
   <!-- Help Guide Dialog -->
   @if (isGuideOpen) {

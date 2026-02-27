@@ -44,6 +44,7 @@ public partial class App : Application
         SnmpHub.SimulatorVm = simulatorVm;
         SnmpHub.DeviceListVm = deviceListVm;
         SnmpHub.MibStoreRef = mibStore;
+        SnmpHub.TrapGen = trapGenerator;
 
         // Wire existing events → SignalR broadcasts
         simulatorVm.TrafficReceived += (deviceName, op, oid, val, sourceIp) =>

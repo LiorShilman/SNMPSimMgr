@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.RegularExpressions;
+using SNMPSimMgr.Hubs;
 using SNMPSimMgr.Models;
 
 namespace SNMPSimMgr.Services;
@@ -102,6 +103,16 @@ public static class MibParserService
 
     private static readonly Regex SizeConstraintRegex = new(
         @"SIZE\s*\(\s*(\d+)\s*\.\.\s*(\d+)\s*\)",
+        RegexOptions.Compiled);
+
+    // IMPORTS block: everything from IMPORTS keyword to the terminating semicolon
+    private static readonly Regex ImportsBlockRegex = new(
+        @"\bIMPORTS\s+([\s\S]*?);",
+        RegexOptions.Compiled);
+
+    // FROM clause within IMPORTS block
+    private static readonly Regex FromClauseRegex = new(
+        @"FROM\s+([\w][\w-]*)",
         RegexOptions.Compiled);
 
     // MODULE-IDENTITY or DEFINITIONS ::= BEGIN
@@ -529,6 +540,265 @@ public static class MibParserService
             pos = idx + searchFor.Length;
         }
         return -1;
+    }
+
+    // ── MIB Validation ────────────────────────────────────────────
+
+    public static MibValidationResult ValidateMultiple(List<string> filePaths, string deviceName)
+    {
+        var result = new MibValidationResult { DeviceName = deviceName };
+
+        // Phase 1: Collect raw assignments from ALL files (same as ParseMultiple)
+        var perFile = new List<(string path, string fileName, string content,
+            Dictionary<string, (string parent, int index)> rawAssignments, bool moduleFound)>();
+
+        foreach (var path in filePaths)
+        {
+            var fileName = Path.GetFileName(path);
+
+            if (!File.Exists(path))
+            {
+                var missing = new MibFileValidation { FileName = fileName };
+                missing.Issues.Add(new MibValidationIssue
+                {
+                    Severity = "error",
+                    Message = "File not found",
+                    Context = path
+                });
+                missing.IssueCount = 1;
+                result.Files.Add(missing);
+                continue;
+            }
+
+            try
+            {
+                var content = File.ReadAllText(path);
+                var stripped = StripComments(content);
+                var moduleMatch = ModuleNameRegex.Match(content);
+                var rawAssignments = CollectRawAssignments(stripped);
+                perFile.Add((path, fileName, stripped, rawAssignments, moduleMatch.Success));
+            }
+            catch (Exception ex)
+            {
+                var errFile = new MibFileValidation { FileName = fileName };
+                errFile.Issues.Add(new MibValidationIssue
+                {
+                    Severity = "error",
+                    Message = $"Parse error: {ex.Message}",
+                    Context = ex.GetType().Name
+                });
+                errFile.IssueCount = 1;
+                result.Files.Add(errFile);
+            }
+        }
+
+        // Phase 2: Merge all raw assignments and resolve together (cross-file)
+        var allAssignments = new Dictionary<string, (string parent, int index)>();
+        foreach (var (_, _, _, rawAssignments, _) in perFile)
+        {
+            foreach (var kvp in rawAssignments)
+            {
+                if (!allAssignments.ContainsKey(kvp.Key))
+                    allAssignments[kvp.Key] = kvp.Value;
+            }
+        }
+
+        var globalResolved = new Dictionary<string, string>(RootOids);
+        int lastCount;
+        do
+        {
+            lastCount = globalResolved.Count;
+            foreach (var kvp in allAssignments)
+            {
+                if (globalResolved.ContainsKey(kvp.Key)) continue;
+                if (globalResolved.TryGetValue(kvp.Value.parent, out var parentOid))
+                    globalResolved[kvp.Key] = $"{parentOid}.{kvp.Value.index}";
+            }
+        } while (globalResolved.Count > lastCount);
+
+        // Phase 3: Validate each file using the globally-resolved dictionary
+        foreach (var (path, fileName, stripped, rawAssignments, moduleFound) in perFile)
+        {
+            var validation = new MibFileValidation { FileName = fileName };
+
+            if (!moduleFound)
+            {
+                validation.Issues.Add(new MibValidationIssue
+                {
+                    Severity = "warning",
+                    Message = "No MODULE-IDENTITY or DEFINITIONS found",
+                    Context = "Could not detect module name"
+                });
+            }
+
+            // Check for unresolved names (only truly unresolved across ALL files)
+            foreach (var kvp in rawAssignments)
+            {
+                if (!globalResolved.ContainsKey(kvp.Key))
+                {
+                    validation.Issues.Add(new MibValidationIssue
+                    {
+                        Severity = "warning",
+                        Message = $"Unresolved parent '{kvp.Value.parent}' for '{kvp.Key}'",
+                        Context = $"::= {{ {kvp.Value.parent} {kvp.Value.index} }}"
+                    });
+                }
+            }
+
+            // Check definitions for missing metadata
+            var resolvedCount = 0;
+            var duplicateOids = new Dictionary<string, string>();
+
+            foreach (var kvp in rawAssignments)
+            {
+                if (!globalResolved.TryGetValue(kvp.Key, out var oid)) continue;
+                resolvedCount++;
+
+                // Check for duplicate OIDs
+                if (duplicateOids.TryGetValue(oid, out var existingName))
+                {
+                    validation.Issues.Add(new MibValidationIssue
+                    {
+                        Severity = "warning",
+                        Message = $"Duplicate OID: '{kvp.Key}' and '{existingName}' both map to {oid}",
+                        Context = oid
+                    });
+                }
+                else
+                {
+                    duplicateOids[oid] = kvp.Key;
+                }
+
+                // Check for missing SYNTAX/ACCESS on OBJECT-TYPE definitions
+                var defRegion = ExtractDefinitionRegion(stripped, kvp.Key);
+                if (defRegion != null && defRegion.Contains("OBJECT-TYPE"))
+                {
+                    if (!SyntaxRegex.IsMatch(defRegion) && !defRegion.Contains("SYNTAX"))
+                    {
+                        validation.Issues.Add(new MibValidationIssue
+                        {
+                            Severity = "warning",
+                            Message = $"Missing SYNTAX clause for '{kvp.Key}'",
+                            Context = oid
+                        });
+                    }
+
+                    if (!AccessRegex.IsMatch(defRegion))
+                    {
+                        validation.Issues.Add(new MibValidationIssue
+                        {
+                            Severity = "warning",
+                            Message = $"Missing ACCESS clause for '{kvp.Key}'",
+                            Context = oid
+                        });
+                    }
+                }
+            }
+
+            validation.DefinitionCount = resolvedCount;
+            validation.IssueCount = validation.Issues.Count;
+            result.Files.Add(validation);
+        }
+
+        // Phase 4: Extract IMPORTS dependencies
+        result.Dependencies = ExtractDependencies(filePaths);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extract IMPORTS dependencies from MIB files and classify each as loaded/standard/missing.
+    /// </summary>
+    public static List<MibFileDependencies> ExtractDependencies(List<string> filePaths)
+    {
+        var standardModules = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SNMPv2-SMI", "SNMPv2-TC", "SNMPv2-CONF", "SNMPv2-MIB",
+            "RFC1155-SMI", "RFC-1212", "RFC1213-MIB", "SNMPv2-TM"
+        };
+
+        // Phase 1: Read each file, detect module name, parse IMPORTS
+        var fileModules = new List<(string fileName, string moduleName, List<string> importedModules)>();
+
+        foreach (var path in filePaths)
+        {
+            if (!File.Exists(path)) continue;
+
+            var content = File.ReadAllText(path);
+            var fileName = Path.GetFileName(path);
+            var stripped = StripComments(content);
+
+            var moduleMatch = ModuleNameRegex.Match(content);
+            var moduleName = moduleMatch.Success ? moduleMatch.Groups[1].Value : fileName;
+
+            var importedModules = new List<string>();
+            var importsMatch = ImportsBlockRegex.Match(stripped);
+            if (importsMatch.Success)
+            {
+                var block = importsMatch.Groups[1].Value;
+                foreach (Match fromMatch in FromClauseRegex.Matches(block))
+                {
+                    var depModule = fromMatch.Groups[1].Value;
+                    if (!importedModules.Contains(depModule))
+                        importedModules.Add(depModule);
+                }
+            }
+
+            fileModules.Add((fileName, moduleName, importedModules));
+        }
+
+        // Phase 2: Build module → providing file lookup
+        var moduleProviders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (fileName, moduleName, _) in fileModules)
+        {
+            if (!moduleProviders.ContainsKey(moduleName))
+                moduleProviders[moduleName] = fileName;
+        }
+
+        // Phase 3: Classify each import
+        var results = new List<MibFileDependencies>();
+
+        foreach (var (fileName, moduleName, importedModules) in fileModules)
+        {
+            var deps = new MibFileDependencies
+            {
+                FileName = fileName,
+                ModuleName = moduleName
+            };
+
+            foreach (var imp in importedModules)
+            {
+                var dep = new MibDependency { ModuleName = imp };
+
+                if (standardModules.Contains(imp))
+                {
+                    dep.Status = "standard";
+                }
+                else if (moduleProviders.TryGetValue(imp, out var provider))
+                {
+                    dep.Status = "loaded";
+                    dep.ProvidedBy = provider;
+                }
+                else
+                {
+                    dep.Status = "missing";
+                }
+
+                deps.Imports.Add(dep);
+            }
+
+            results.Add(deps);
+        }
+
+        return results;
+    }
+
+    /// <summary>Validate a single MIB file in isolation (no cross-file resolution).</summary>
+    public static MibFileValidation ValidateFile(string filePath)
+    {
+        // Delegate to ValidateMultiple with a single file
+        var result = ValidateMultiple(new List<string> { filePath }, Path.GetFileName(filePath));
+        return result.Files.Count > 0 ? result.Files[0] : new MibFileValidation { FileName = Path.GetFileName(filePath) };
     }
 
     private static string StripComments(string content)
