@@ -236,7 +236,8 @@
             <!-- Live Traffic list (double-click row → OID + auto GET) -->
             <Border Grid.Row="1" Grid.Column="0" CornerRadius="6"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <ListBox ItemsSource="{Binding TrafficLog}"
+                <ListBox x:Name="TrafficListBox"
+                         ItemsSource="{Binding TrafficLog}"
                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                          BorderThickness="0">
@@ -260,7 +261,8 @@
             <!-- System Log list -->
             <Border Grid.Row="1" Grid.Column="2" CornerRadius="6"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <ListBox ItemsSource="{Binding LogEntries}"
+                <ListBox x:Name="SystemLogListBox"
+                         ItemsSource="{Binding LogEntries}"
                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                          BorderThickness="0">

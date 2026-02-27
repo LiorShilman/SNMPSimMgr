@@ -1,21 +1,24 @@
 import { Component, inject, computed } from '@angular/core';
 import { MibPanelService } from './services/mib-panel.service';
 import { FieldClassifierService } from './services/field-classifier.service';
+import { SignalRService } from './services/signalr.service';
 import { SidePanelComponent } from './components/side-panel/side-panel.component';
 import { ModuleSectionComponent } from './components/module-section/module-section.component';
 import { SetFeedbackComponent } from './components/set-feedback/set-feedback.component';
 import { DeviceCardComponent } from './components/device-card/device-card.component';
 import { SystemInfoComponent } from './components/system-info/system-info.component';
+import { ConnectionStatusComponent } from './components/connection-status/connection-status.component';
 
 @Component({
   selector: 'app-root',
-  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent],
+  imports: [SidePanelComponent, ModuleSectionComponent, SetFeedbackComponent, DeviceCardComponent, SystemInfoComponent, ConnectionStatusComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
   private panelService = inject(MibPanelService);
   private classifier = inject(FieldClassifierService);
+  private signalR = inject(SignalRService);
 
   schema = this.panelService.schema;
   identity = computed(() => {
@@ -30,6 +33,11 @@ export class App {
 
   isPanelOpen = false;
   isDragging = false;
+
+  constructor() {
+    // Auto-connect to WPF SignalR server
+    this.signalR.connect();
+  }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;

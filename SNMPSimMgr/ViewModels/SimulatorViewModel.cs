@@ -14,6 +14,7 @@ public partial class SimulatorViewModel : ObservableObject
     private readonly TrapGeneratorService _trapGenerator;
     private readonly DeviceListViewModel _deviceList;
     private readonly SnmpRecorderService _recorder;
+    private readonly MibStore _mibStore;
     private readonly ConcurrentDictionary<string, SnmpSimulatorService> _simulators = new();
 
     public event Action<string, string, string, string, string>? TrafficReceived; // deviceName, op, oid, val, sourceIp
@@ -43,12 +44,14 @@ public partial class SimulatorViewModel : ObservableObject
         DeviceProfileStore store,
         TrapGeneratorService trapGenerator,
         DeviceListViewModel deviceList,
-        SnmpRecorderService recorder)
+        SnmpRecorderService recorder,
+        MibStore mibStore)
     {
         _store = store;
         _trapGenerator = trapGenerator;
         _deviceList = deviceList;
         _recorder = recorder;
+        _mibStore = mibStore;
 
         _trapGenerator.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
             LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
@@ -77,15 +80,36 @@ public partial class SimulatorViewModel : ObservableObject
             SelectedSessionName = SessionList[0];
     }
 
+    /// <summary>Resolve OID to MIB name, e.g. "1.3.6.1.2.1.1.1.0" → "sysDescr".</summary>
+    private string ResolveOidName(string oid)
+    {
+        // Exact match
+        if (_mibStore.LoadedOids.TryGetValue(oid, out var def))
+            return def.Name;
+
+        // Strip last segment progressively (handles scalar .0 and table row indexes)
+        var current = oid;
+        for (int i = 0; i < 3; i++)
+        {
+            var lastDot = current.LastIndexOf('.');
+            if (lastDot <= 0) break;
+            current = current[..lastDot];
+            if (_mibStore.LoadedOids.TryGetValue(current, out def))
+                return def.Name;
+        }
+        return "";
+    }
+
     private DeviceProfile? BuildTempDevice()
     {
         if (SelectedSimulator == null) return null;
+        var device = _deviceList.Devices.FirstOrDefault(d => d.Id == SelectedSimulator.DeviceId);
         return new DeviceProfile
         {
             IpAddress = "127.0.0.1",
             Port = SelectedSimulator.Port,
             Version = SnmpVersionOption.V2c,
-            Community = "public"
+            Community = device?.Community ?? "public"
         };
     }
 
@@ -108,19 +132,34 @@ public partial class SimulatorViewModel : ObservableObject
             return;
         }
 
+        // Load MIB definitions for OID name resolution in traffic log
+        await _mibStore.LoadForDeviceAsync(device);
+
         var sim = new SnmpSimulatorService();
         sim.LoadMibData(walkData, device.Name);
 
         sim.LogMessage += msg => App.Current.Dispatcher.Invoke(() =>
-            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] [{device.Name}] {msg}"));
+        {
+            // Enrich OIDs in log messages with MIB names
+            var enriched = Regex.Replace(msg, @"(\d+(?:\.\d+){5,})", m =>
+            {
+                var name = ResolveOidName(m.Value);
+                return string.IsNullOrEmpty(name) ? m.Value : $"{m.Value} ({name})";
+            });
+            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] [{device.Name}] {enriched}");
+        });
 
         sim.RequestReceived += (op, oid, val, sourceIp) => App.Current.Dispatcher.Invoke(() =>
         {
-            TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {sourceIp} → {device.Name} | {op} {oid} {val}");
+            var name = ResolveOidName(oid);
+            var nameTag = string.IsNullOrEmpty(name) ? "" : $" ({name})";
+            TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] {sourceIp} → {device.Name} | {op} {oid}{nameTag} {val}");
             while (TrafficLog.Count > 500)
-                TrafficLog.RemoveAt(TrafficLog.Count - 1);
+                TrafficLog.RemoveAt(0);
 
-            TrafficReceived?.Invoke(device.Name, op, oid, val, sourceIp);
+            // Only broadcast individual GET/SET to Angular (not GETNEXT/GETBULK to avoid flooding during WALK)
+            if (op == "GET" || op == "SET")
+                TrafficReceived?.Invoke(device.Name, op, oid, val, sourceIp);
         });
 
         var port = SimulatorPort;
@@ -230,9 +269,9 @@ public partial class SimulatorViewModel : ObservableObject
             }
 
             // Log injection traffic with device → clients direction
-            TrafficLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {device.Name} → Clients | INJ#{frameNum} {records.Count} OIDs");
+            TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] {device.Name} → Clients | INJ#{frameNum} {records.Count} OIDs");
             while (TrafficLog.Count > 500)
-                TrafficLog.RemoveAt(TrafficLog.Count - 1);
+                TrafficLog.RemoveAt(0);
 
             TrafficReceived?.Invoke(device.Name, $"INJ#{frameNum}", $"{records.Count} OIDs", $"Frame {frameNum}", "injection");
         });
@@ -295,6 +334,17 @@ public partial class SimulatorViewModel : ObservableObject
                     Value = result.Value,
                     IsSuccess = true
                 });
+
+                // Auto-detect SET value type from GET response
+                if (!string.IsNullOrEmpty(result.ValueType))
+                {
+                    SetValueType = result.ValueType;
+                    SetValue = result.Value;
+                }
+
+                // Broadcast GET result so Angular panel updates
+                if (SelectedSimulator != null)
+                    TrafficReceived?.Invoke(SelectedSimulator.DeviceName, "GET", result.Oid, result.Value, "127.0.0.1");
             }
             else
             {
@@ -346,6 +396,18 @@ public partial class SimulatorViewModel : ObservableObject
                 IsSuccess = success
             });
 
+            // Broadcast SET traffic so Angular receives it
+            if (success && SelectedSimulator != null)
+            {
+                var setName = ResolveOidName(QueryOid);
+                var setNameTag = string.IsNullOrEmpty(setName) ? "" : $" ({setName})";
+                TrafficLog.Add($"[{DateTime.Now:HH:mm:ss}] WPF → {SelectedSimulator.DeviceName} | SET {QueryOid}{setNameTag} {SetValue}");
+                while (TrafficLog.Count > 500)
+                    TrafficLog.RemoveAt(0);
+
+                TrafficReceived?.Invoke(SelectedSimulator.DeviceName, "SET", QueryOid, SetValue, "127.0.0.1");
+            }
+
             if (success)
             {
                 // Verify with GET
@@ -361,6 +423,10 @@ public partial class SimulatorViewModel : ObservableObject
                         Value = verify.Value,
                         IsSuccess = true
                     });
+
+                    // Broadcast verified value so Angular panel updates immediately
+                    if (SelectedSimulator != null)
+                        TrafficReceived?.Invoke(SelectedSimulator.DeviceName, "SET", verify.Oid, verify.Value, "127.0.0.1");
                 }
             }
         }
@@ -449,32 +515,62 @@ public partial class SimulatorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Called when user clicks a Traffic Log entry. Parses OID and auto-GETs.
-    /// Format: [HH:mm:ss] DeviceName | OP OID Value
+    /// Called when user double-clicks a Traffic Log entry. Parses OID and fills the query field.
+    /// Format: [HH:mm:ss] source → device | OP OID (name) value
     /// </summary>
     [RelayCommand]
-    private async Task SelectTrafficEntry(string? entry)
+    private void SelectTrafficEntry(string? entry)
     {
         if (string.IsNullOrWhiteSpace(entry)) return;
 
         var match = Regex.Match(entry, @"\|\s+\w+\s+([\d\.]+)");
         if (match.Success)
         {
-            QueryOid = match.Groups[1].Value;
-            await QueryGet();
+            var oid = match.Groups[1].Value;
+            QueryOid = oid;
+
+            // Try to resolve the SNMP type from MIB definitions
+            var baseOid = oid.EndsWith(".0") ? oid[..^2] : oid;
+            if (_mibStore.LoadedOids.TryGetValue(baseOid, out var def) ||
+                _mibStore.LoadedOids.TryGetValue(oid, out def))
+            {
+                if (!string.IsNullOrEmpty(def.Syntax))
+                    SetValueType = MapMibSyntaxToSnmpType(def.Syntax);
+            }
         }
     }
 
+    /// <summary>Map MIB SYNTAX (e.g. "INTEGER", "DisplayString") to SNMP type name.</summary>
+    private static string MapMibSyntaxToSnmpType(string syntax)
+    {
+        var s = syntax.Split('(')[0].Split('{')[0].Trim().ToUpperInvariant();
+        return s switch
+        {
+            "INTEGER" or "INTEGER32" => "Integer32",
+            "COUNTER" or "COUNTER32" => "Counter32",
+            "COUNTER64" => "Counter64",
+            "GAUGE" or "GAUGE32" or "UNSIGNED32" => "Gauge32",
+            "TIMETICKS" => "TimeTicks",
+            "IPADDRESS" => "IpAddress",
+            "OBJECT IDENTIFIER" => "ObjectIdentifier",
+            "DISPLAYSTRING" or "OCTET STRING" or "OCTETSTRING" => "OctetString",
+            _ => "OctetString"
+        };
+    }
+
     /// <summary>
-    /// Called when user clicks a Query Results row. Copies OID and auto-GETs.
+    /// Called when user double-clicks a Query Results row. Copies OID and value to query fields.
     /// </summary>
     [RelayCommand]
-    private async Task SelectQueryResult(QueryResultItem? item)
+    private void SelectQueryResult(QueryResultItem? item)
     {
         if (item == null || string.IsNullOrWhiteSpace(item.Oid)) return;
 
         QueryOid = item.Oid;
-        await QueryGet();
+        if (!string.IsNullOrEmpty(item.ValueType))
+            SetValueType = item.ValueType;
+        if (!string.IsNullOrEmpty(item.Value))
+            SetValue = item.Value;
     }
 }
 

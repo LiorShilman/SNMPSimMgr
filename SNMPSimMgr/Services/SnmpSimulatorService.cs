@@ -171,18 +171,18 @@ public class SnmpSimulatorService : IDisposable
         foreach (var vb in request.VbList)
         {
             var oid = vb.Oid.ToString();
-            RequestReceived?.Invoke("GET", oid, string.Empty, sourceIp);
-
             if (_mibData.ContainsKey(oid) || _dynamicValues.ContainsKey(oid))
             {
                 var val = GetValue(oid);
                 var vbType = GetValueType(oid);
                 response.VbList.Add(vb.Oid, SnmpTypeHelper.CreateValue(vbType, val));
+                RequestReceived?.Invoke("GET", oid, val, sourceIp);
                 Log($"GET {oid} → {val}");
             }
             else
             {
                 response.VbList.Add(vb.Oid, new NoSuchInstance());
+                RequestReceived?.Invoke("GET", oid, string.Empty, sourceIp);
                 Log($"GET {oid} → NoSuchInstance");
             }
         }
@@ -193,7 +193,6 @@ public class SnmpSimulatorService : IDisposable
         foreach (var vb in request.VbList)
         {
             var requestedOid = vb.Oid.ToString();
-            RequestReceived?.Invoke("GETNEXT", requestedOid, string.Empty, sourceIp);
 
             var nextOid = FindNextOid(requestedOid);
             if (nextOid != null)
@@ -201,11 +200,13 @@ public class SnmpSimulatorService : IDisposable
                 var val = GetValue(nextOid);
                 var vbType = GetValueType(nextOid);
                 response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
+                RequestReceived?.Invoke("GETNEXT", nextOid, val, sourceIp);
                 Log($"GETNEXT {requestedOid} → {nextOid} = {val}");
             }
             else
             {
                 response.VbList.Add(vb.Oid, new EndOfMibView());
+                RequestReceived?.Invoke("GETNEXT", requestedOid, string.Empty, sourceIp);
                 Log($"GETNEXT {requestedOid} → EndOfMibView");
             }
         }
@@ -218,7 +219,6 @@ public class SnmpSimulatorService : IDisposable
         foreach (var vb in request.VbList)
         {
             var currentOid = vb.Oid.ToString();
-            RequestReceived?.Invoke("GETBULK", currentOid, $"max={maxRepetitions}", sourceIp);
 
             for (int i = 0; i < maxRepetitions; i++)
             {
@@ -232,6 +232,7 @@ public class SnmpSimulatorService : IDisposable
                 var val = GetValue(nextOid);
                 var vbType = GetValueType(nextOid);
                 response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
+                RequestReceived?.Invoke("GETBULK", nextOid, val, sourceIp);
                 currentOid = nextOid;
             }
 
