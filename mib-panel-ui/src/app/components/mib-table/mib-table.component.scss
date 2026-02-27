@@ -191,3 +191,52 @@ tbody td {
 
   &:hover { color: #FF6B6B; }
 }
+
+// Status LED indicator in table cells
+.status-led {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+
+  .led-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &[data-status="ok"] {
+    color: #57D9A3;
+    background: rgba(87, 217, 163, 0.1);
+    .led-dot { background: #57D9A3; box-shadow: 0 0 5px rgba(87, 217, 163, 0.5); }
+  }
+  &[data-status="warn"] {
+    color: #FFAB00;
+    background: rgba(255, 171, 0, 0.1);
+    .led-dot { background: #FFAB00; box-shadow: 0 0 5px rgba(255, 171, 0, 0.5); }
+  }
+  &[data-status="error"] {
+    color: #FF5252;
+    background: rgba(255, 82, 82, 0.1);
+    .led-dot {
+      background: #FF5252;
+      box-shadow: 0 0 5px rgba(255, 82, 82, 0.5);
+      animation: pulse-error 2s ease-in-out infinite;
+    }
+  }
+  &[data-status="off"] {
+    color: #8C95A6;
+    background: rgba(140, 149, 166, 0.08);
+    .led-dot { background: #5A6170; }
+  }
+}
+
+@keyframes pulse-error {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 82, 82, 0.5); }
+  50% { box-shadow: 0 0 10px rgba(255, 82, 82, 0.8); }
+}

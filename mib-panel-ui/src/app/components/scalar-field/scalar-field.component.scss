@@ -262,3 +262,53 @@
   font-weight: 600;
   color: #E8EAED;
 }
+
+// Status LED indicator
+.status-led {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: capitalize;
+
+  .led-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &[data-status="ok"] {
+    color: #57D9A3;
+    background: rgba(87, 217, 163, 0.1);
+    .led-dot { background: #57D9A3; box-shadow: 0 0 6px rgba(87, 217, 163, 0.5); }
+  }
+  &[data-status="warn"] {
+    color: #FFAB00;
+    background: rgba(255, 171, 0, 0.1);
+    .led-dot { background: #FFAB00; box-shadow: 0 0 6px rgba(255, 171, 0, 0.5); }
+  }
+  &[data-status="error"] {
+    color: #FF5252;
+    background: rgba(255, 82, 82, 0.1);
+    .led-dot {
+      background: #FF5252;
+      box-shadow: 0 0 6px rgba(255, 82, 82, 0.5);
+      animation: pulse-error 2s ease-in-out infinite;
+    }
+  }
+  &[data-status="off"] {
+    color: #8C95A6;
+    background: rgba(140, 149, 166, 0.08);
+    .led-dot { background: #5A6170; }
+  }
+}
+
+@keyframes pulse-error {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 82, 82, 0.5); }
+  50% { box-shadow: 0 0 12px rgba(255, 82, 82, 0.8); }
+}

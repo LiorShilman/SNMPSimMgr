@@ -79,6 +79,19 @@ export class MibTableComponent {
     return this.editingCell?.rowIndex === rowIndex && this.editingCell?.colOid === colOid;
   }
 
+  getCellStatus(rowIndex: string, col: MibFieldSchema): string {
+    const row = this.table.rows.find(r => r.index === rowIndex);
+    if (!row || !col.options?.length) return 'off';
+    const cell = row.values[col.oid];
+    if (!cell) return 'off';
+    const num = parseInt(cell.value, 10);
+    const label = (col.options.find(o => o.value === num)?.label || '').toLowerCase();
+    if (['ok', 'normal', 'on', 'up', 'active', 'enabled'].includes(label)) return 'ok';
+    if (['low', 'high', 'warning'].includes(label)) return 'warn';
+    if (['fail', 'fault', 'alarm', 'error', 'critical'].includes(label) || label.includes('failed')) return 'error';
+    return 'off';
+  }
+
   friendlyName(name: string): string {
     return name
       .replace(/^sd|^sys/i, '')

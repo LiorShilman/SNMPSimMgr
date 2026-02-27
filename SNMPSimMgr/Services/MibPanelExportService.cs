@@ -417,9 +417,23 @@ public class MibPanelExportService
     {
         var baseType = (def.BaseType ?? def.Syntax ?? "").Trim();
 
-        // Enum → dropdown
+        // Enum classification: toggle / status-led / dropdown
         if (def.EnumValues != null && def.EnumValues.Count > 0)
+        {
+            // Writable 2-value enum with values 0,1 → toggle switch
+            if (isWritable && def.EnumValues.Count == 2)
+            {
+                var vals = def.EnumValues.Values.OrderBy(v => v).ToList();
+                if (vals[0] == 0 && vals[1] == 1)
+                    return "toggle";
+            }
+
+            // Read-only status enum → LED indicator
+            if (!isWritable && IsStatusEnum(def.EnumValues))
+                return "status-led";
+
             return "enum";
+        }
 
         switch (baseType.ToUpperInvariant())
         {
@@ -464,4 +478,17 @@ public class MibPanelExportService
                 return "text";
         }
     }
+
+    // Known status vocabulary for LED indicator detection
+    private static readonly HashSet<string> StatusKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ok", "fail", "fault", "alarm", "normal", "low", "high",
+        "on", "off", "up", "down", "enabled", "disabled",
+        "active", "inactive", "error", "warning", "critical"
+    };
+
+    private static bool IsStatusEnum(Dictionary<string, int> enumValues)
+        => enumValues.Keys.All(label =>
+            StatusKeywords.Contains(label) ||
+            label.IndexOf("failed", StringComparison.OrdinalIgnoreCase) >= 0);
 }

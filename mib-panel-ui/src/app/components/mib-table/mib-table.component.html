@@ -58,6 +58,11 @@
                         </svg>
                       </button>
                     </div>
+                  } @else if (col.inputType === 'status-led') {
+                    <span class="status-led" [attr.data-status]="getCellStatus(row.index, col)">
+                      <span class="led-dot"></span>
+                      <span class="led-label">{{ getCellValue(row.index, col.oid) }}</span>
+                    </span>
                   } @else {
                     <span class="cell-value">{{ getCellValue(row.index, col.oid) }}</span>
                     @if (col.isWritable) {

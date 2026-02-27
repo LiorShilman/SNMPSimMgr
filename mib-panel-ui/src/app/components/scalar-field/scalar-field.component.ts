@@ -17,10 +17,40 @@ export class ScalarFieldComponent {
   editValue = '';
   isEditing = false;
 
+  // Toggle helpers: derive on/off values and labels from enum options
+  get toggleOnValue(): string {
+    if (this.field.options?.length === 2) {
+      const sorted = [...this.field.options].sort((a, b) => a.value - b.value);
+      return String(sorted[1].value); // higher value = ON
+    }
+    return '1';
+  }
+  get toggleOffValue(): string {
+    if (this.field.options?.length === 2) {
+      const sorted = [...this.field.options].sort((a, b) => a.value - b.value);
+      return String(sorted[0].value); // lower value = OFF
+    }
+    return '0';
+  }
+  get toggleOnLabel(): string {
+    if (this.field.options?.length === 2) {
+      const sorted = [...this.field.options].sort((a, b) => a.value - b.value);
+      return sorted[1].label;
+    }
+    return 'ON';
+  }
+  get toggleOffLabel(): string {
+    if (this.field.options?.length === 2) {
+      const sorted = [...this.field.options].sort((a, b) => a.value - b.value);
+      return sorted[0].label;
+    }
+    return 'OFF';
+  }
+
   get displayValue(): string {
     if (!this.field.currentValue) return '—';
 
-    // Resolve enum label
+    // Resolve enum label (also for toggle and status-led)
     if (this.field.options?.length) {
       const num = parseInt(this.field.currentValue, 10);
       const opt = this.field.options.find(o => o.value === num);
@@ -57,8 +87,20 @@ export class ScalarFieldComponent {
       case 'text':    return 'T';
       case 'oid':     return '⎆';
       case 'bits':    return '⊞';
+      case 'status-led': return '◉';
       default:        return '·';
     }
+  }
+
+  // Status LED color class based on current enum label
+  get statusClass(): string {
+    if (!this.field.options?.length || !this.field.currentValue) return 'off';
+    const num = parseInt(this.field.currentValue, 10);
+    const label = (this.field.options.find(o => o.value === num)?.label || '').toLowerCase();
+    if (['ok', 'normal', 'on', 'up', 'active', 'enabled'].includes(label)) return 'ok';
+    if (['low', 'high', 'warning'].includes(label)) return 'warn';
+    if (['fail', 'fault', 'alarm', 'error', 'critical'].includes(label) || label.includes('failed')) return 'error';
+    return 'off';
   }
 
   get accessBadge(): string {

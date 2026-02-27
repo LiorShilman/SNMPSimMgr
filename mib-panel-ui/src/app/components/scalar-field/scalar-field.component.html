@@ -19,9 +19,16 @@
     @if (!isEditing) {
       <!-- Display mode -->
       <div class="field-display" (click)="startEdit()" [class.clickable]="field.isWritable">
-        <span class="current-value" [class.no-value]="!field.currentValue">{{ displayValue }}</span>
-        @if (field.currentValueType) {
-          <span class="value-type-tag">{{ field.currentValueType }}</span>
+        @if (field.inputType === 'status-led') {
+          <span class="status-led" [attr.data-status]="statusClass">
+            <span class="led-dot"></span>
+            <span class="led-label">{{ displayValue }}</span>
+          </span>
+        } @else {
+          <span class="current-value" [class.no-value]="!field.currentValue">{{ displayValue }}</span>
+          @if (field.currentValueType) {
+            <span class="value-type-tag">{{ field.currentValueType }}</span>
+          }
         }
       </div>
       @if (field.isWritable) {
@@ -43,10 +50,10 @@
           @case ('toggle') {
             <label class="toggle-switch">
               <input type="checkbox" [title]="field.name"
-                     [checked]="editValue === '1'"
-                     (change)="editValue = $any($event.target).checked ? '1' : '2'">
+                     [checked]="editValue === toggleOnValue"
+                     (change)="editValue = $any($event.target).checked ? toggleOnValue : toggleOffValue">
               <span class="toggle-slider"></span>
-              <span class="toggle-label">{{ editValue === '1' ? 'ON' : 'OFF' }}</span>
+              <span class="toggle-label">{{ editValue === toggleOnValue ? toggleOnLabel : toggleOffLabel }}</span>
             </label>
           }
           @case ('number') {

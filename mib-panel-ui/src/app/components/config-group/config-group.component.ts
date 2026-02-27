@@ -50,6 +50,40 @@ export class ConfigGroupComponent {
       .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
   }
 
+  // Toggle helpers: derive on/off values and labels from enum options
+  getToggleOnValue(field: MibFieldSchema): string {
+    if (field.options?.length === 2) {
+      const sorted = [...field.options].sort((a, b) => a.value - b.value);
+      return String(sorted[1].value);
+    }
+    return '1';
+  }
+  getToggleOffValue(field: MibFieldSchema): string {
+    if (field.options?.length === 2) {
+      const sorted = [...field.options].sort((a, b) => a.value - b.value);
+      return String(sorted[0].value);
+    }
+    return '0';
+  }
+  getToggleLabel(field: MibFieldSchema, isOn: boolean): string {
+    if (field.options?.length === 2) {
+      const sorted = [...field.options].sort((a, b) => a.value - b.value);
+      return isOn ? sorted[1].label : sorted[0].label;
+    }
+    return isOn ? 'ON' : 'OFF';
+  }
+
+  // Status LED color class
+  getStatusClass(field: MibFieldSchema): string {
+    if (!field.options?.length || !field.currentValue) return 'off';
+    const num = parseInt(field.currentValue, 10);
+    const label = (field.options.find(o => o.value === num)?.label || '').toLowerCase();
+    if (['ok', 'normal', 'on', 'up', 'active', 'enabled'].includes(label)) return 'ok';
+    if (['low', 'high', 'warning'].includes(label)) return 'warn';
+    if (['fail', 'fault', 'alarm', 'error', 'critical'].includes(label) || label.includes('failed')) return 'error';
+    return 'off';
+  }
+
   displayValue(field: MibFieldSchema): string {
     if (!field.currentValue) return field.defaultValue || '—';
 
@@ -57,7 +91,8 @@ export class ConfigGroupComponent {
     if (enumLabel) return enumLabel;
 
     if (field.inputType === 'toggle') {
-      return field.currentValue === '1' ? 'ON' : 'OFF';
+      return field.currentValue === this.getToggleOnValue(field)
+        ? this.getToggleLabel(field, true) : this.getToggleLabel(field, false);
     }
 
     return field.currentValue;
