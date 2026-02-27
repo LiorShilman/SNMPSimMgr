@@ -1,4 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Inter font — vendored locally for offline support */
+@font-face {
+  font-family: 'Inter';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/assets/fonts/inter-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('/assets/fonts/inter-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('/assets/fonts/inter-600.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/assets/fonts/inter-700.ttf') format('truetype');
+}
 
 *, *::before, *::after {
   box-sizing: border-box;
