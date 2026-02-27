@@ -32,6 +32,52 @@ export class App {
     return s ? this.classifier.extractSystemInfo(s) : [];
   });
 
+  /** SignalR connection state for panel header dot */
+  signalRState = computed(() => this.signalR.connectionState());
+
+  /** Quick stats for panel header */
+  panelStats = computed(() => {
+    const s = this.schema();
+    if (!s) return { fields: 0, tables: 0, modules: 0 };
+    let tables = 0;
+    for (const m of s.modules) tables += m.tables.length;
+    return { fields: s.totalFields, tables, modules: s.modules.length };
+  });
+
+  /** Aggregate health summary across all modules */
+  healthSummary = computed(() => {
+    const s = this.schema();
+    if (!s) return { ok: 0, warning: 0, alarm: 0, info: 0 };
+    let ok = 0, warning = 0, alarm = 0, info = 0;
+    for (const module of s.modules) {
+      const classified = this.classifier.classifyScalars(module.scalars);
+      for (const field of classified.status) {
+        if (!field.options?.length || !field.currentValue) { info++; continue; }
+        const num = parseInt(field.currentValue, 10);
+        const label = (field.options.find((o: any) => o.value === num)?.label || '').toLowerCase();
+        if (/up|active|ok|normal|enabled|true|running|online|ready/.test(label)) ok++;
+        else if (/warning|degraded|standby|testing|suspended/.test(label)) warning++;
+        else if (/down|error|fail|critical|disabled|false|offline|alarm|fault/.test(label)) alarm++;
+        else info++;
+      }
+      info += classified.counters.length;
+    }
+    return { ok, warning, alarm, info };
+  });
+
+  /** Module tabs for navigation */
+  moduleTabs = computed(() => {
+    const s = this.schema();
+    if (!s) return [];
+    return s.modules.map((m, i) => ({
+      name: m.moduleName,
+      count: m.scalarCount + m.tableCount,
+      index: i,
+    }));
+  });
+
+  activeModuleIndex = 0;
+
   isPanelOpen = false;
   isGuideOpen = false;
   isDragging = false;
@@ -48,6 +94,12 @@ export class App {
       this.panelService.loadFromFile(file);
     }
     input.value = '';
+  }
+
+  scrollToModule(index: number): void {
+    this.activeModuleIndex = index;
+    const el = document.getElementById('panel-module-' + index);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   onDragOver(event: DragEvent): void {

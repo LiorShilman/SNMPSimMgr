@@ -75,17 +75,68 @@
   <app-side-panel [isOpen]="isPanelOpen" (close)="isPanelOpen = false">
     <div panel-header>
       @if (identity(); as id) {
-        <div class="panel-title-area">
-          <div class="panel-device-name">{{ id.name }}</div>
-          <div class="panel-device-meta">{{ id.model }} &middot; {{ id.firmware }}</div>
+        <div class="panel-header-card">
+          <div class="panel-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <path d="M8 21h8m-4-4v4"/>
+              <circle cx="12" cy="10" r="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="panel-identity">
+            <div class="panel-device-name">
+              <span class="panel-conn-dot" [class]="signalRState()"></span>
+              {{ id.name }}
+            </div>
+            <div class="panel-device-meta">{{ id.model }} &middot; {{ id.firmware }}</div>
+          </div>
+          @if (panelStats(); as ps) {
+            <div class="panel-quick-stats">{{ ps.fields }} fields &middot; {{ ps.tables }} tables &middot; {{ ps.modules }} mod</div>
+          }
         </div>
       }
     </div>
 
     @if (schema(); as s) {
+      <!-- Health Summary Strip -->
+      @if (healthSummary(); as h) {
+        @if (h.ok + h.warning + h.alarm > 0) {
+          <div class="health-strip">
+            @if (h.ok > 0) {
+              <span class="health-item ok"><span class="health-dot"></span>{{ h.ok }} OK</span>
+            }
+            @if (h.warning > 0) {
+              <span class="health-item warning"><span class="health-dot"></span>{{ h.warning }} Warning</span>
+            }
+            @if (h.alarm > 0) {
+              <span class="health-item alarm"><span class="health-dot"></span>{{ h.alarm }} Alarm</span>
+            }
+            @if (h.info > 0) {
+              <span class="health-item info"><span class="health-dot"></span>{{ h.info }} Info</span>
+            }
+          </div>
+        }
+      }
+
+      <!-- Module Tabs -->
+      @if (moduleTabs().length > 1) {
+        <div class="module-tabs">
+          @for (tab of moduleTabs(); track tab.index) {
+            <button type="button" class="module-tab"
+                    [class.active]="activeModuleIndex === tab.index"
+                    (click)="scrollToModule(tab.index)">
+              {{ tab.name }}
+              <span class="tab-badge">{{ tab.count }}</span>
+            </button>
+          }
+        </div>
+      }
+
       <div class="panel-modules">
-        @for (module of s.modules; track module.moduleName) {
-          <app-module-section [module]="module" />
+        @for (module of s.modules; track module.moduleName; let i = $index) {
+          <div [id]="'panel-module-' + i">
+            <app-module-section [module]="module" />
+          </div>
         }
       </div>
 

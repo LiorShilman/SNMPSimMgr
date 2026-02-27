@@ -56,8 +56,9 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
       align-items: center;
       padding: 16px 20px;
       border-bottom: 1px solid #2A3040;
-      background: #1E2230;
-      min-height: 60px;
+      background: linear-gradient(135deg, #1a2035 0%, #1e2740 50%, #1a2035 100%);
+      min-height: 68px;
+      box-shadow: 0 2px 16px rgba(76, 154, 255, 0.06);
     }
 
     .panel-body {
