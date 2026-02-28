@@ -8,6 +8,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -145,6 +146,7 @@
                 <!-- OID Tree -->
                 <TreeView x:Name="mibTree" ItemsSource="{Binding RootNodes}"
                           BorderThickness="0"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding ShowTree, Converter={StaticResource BoolToVisConverter}}">
                     <TreeView.ItemContainerStyle>
                         <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
@@ -154,17 +156,72 @@
                                     Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=TreeView}}"/>
                             <Setter Property="ContextMenu">
                                 <Setter.Value>
-                                    <ContextMenu>
-                                        <MenuItem Header="Expand All Children"
-                                                  Command="{Binding PlacementTarget.Tag.ExpandAllChildrenCommand,
+                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                     RelativeSource={RelativeSource Self}}"
+                                                 MinWidth="200">
+                                        <!-- GET: always visible -->
+                                        <MenuItem Command="{Binding PlacementTarget.Tag.ContextGetCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                  CommandParameter="{Binding PlacementTarget.DataContext,
-                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                        <MenuItem Header="Collapse All Children"
-                                                  Command="{Binding PlacementTarget.Tag.CollapseAllChildrenCommand,
+                                                  CommandParameter="{Binding}">
+                                            <MenuItem.Header>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="GET" FontWeight="Bold" Width="50"
+                                                               Foreground="{StaticResource AccentGreenBrush}"/>
+                                                    <TextBlock Text="Read value" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </MenuItem.Header>
+                                        </MenuItem>
+                                        <!-- SET: only for writable OIDs -->
+                                        <MenuItem Command="{Binding PlacementTarget.Tag.ContextSetCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                  CommandParameter="{Binding PlacementTarget.DataContext,
-                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                  CommandParameter="{Binding}"
+                                                  Visibility="{Binding IsWritable,
+                                                      Converter={StaticResource BoolToVisConverter}}">
+                                            <MenuItem.Header>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="SET" FontWeight="Bold" Width="50"
+                                                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                                                    <TextBlock Text="Write value" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </MenuItem.Header>
+                                        </MenuItem>
+                                        <!-- WALK: only for branch nodes -->
+                                        <MenuItem Command="{Binding PlacementTarget.Tag.ContextWalkCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding}"
+                                                  Visibility="{Binding HasChildren,
+                                                      Converter={StaticResource BoolToVisConverter}}">
+                                            <MenuItem.Header>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="WALK" FontWeight="Bold" Width="50"
+                                                               Foreground="{StaticResource AccentBlueBrush}"/>
+                                                    <TextBlock Text="Walk subtree" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </MenuItem.Header>
+                                        </MenuItem>
+                                        <Separator Visibility="{Binding HasChildren,
+                                                       Converter={StaticResource BoolToVisConverter}}"/>
+                                        <!-- Expand/Collapse: only for branch nodes -->
+                                        <MenuItem Command="{Binding PlacementTarget.Tag.ExpandAllChildrenCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding}"
+                                                  Visibility="{Binding HasChildren,
+                                                      Converter={StaticResource BoolToVisConverter}}">
+                                            <MenuItem.Header>
+                                                <TextBlock Text="Expand All Children"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </MenuItem.Header>
+                                        </MenuItem>
+                                        <MenuItem Command="{Binding PlacementTarget.Tag.CollapseAllChildrenCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding}"
+                                                  Visibility="{Binding HasChildren,
+                                                      Converter={StaticResource BoolToVisConverter}}">
+                                            <MenuItem.Header>
+                                                <TextBlock Text="Collapse All Children"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </MenuItem.Header>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Setter.Value>
                             </Setter>
@@ -172,52 +229,41 @@
                     </TreeView.ItemContainerStyle>
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal">
-                                <!-- Icon: folder or leaf -->
-                                <TextBlock Margin="0,0,6,0" FontSize="12" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="&#x1F4C1;"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsLeaf}" Value="True">
-                                                    <Setter Property="Text" Value="&#x1F4C4;"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                            <TextBlock TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
                                 <!-- Name -->
-                                <TextBlock FontSize="12" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
+                                <Run FontWeight="SemiBold">
+                                    <Run.Style>
+                                        <Style TargetType="Run">
                                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Text" Value="{Binding DisplayName, Mode=OneWay}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsLeaf}" Value="True">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
-                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                    <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold"/>
-                                </TextBlock>
-                                <!-- OID in gray -->
-                                <TextBlock Text="{Binding Oid}" FontSize="10" Margin="8,0,0,0"
-                                           FontFamily="Cascadia Code,Consolas,Courier New"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           VerticalAlignment="Center" Opacity="0.7"/>
-                                <!-- Value if leaf -->
-                                <TextBlock FontSize="12" Margin="12,0,0,0"
-                                           Foreground="{StaticResource AccentBlueBrush}"
-                                           FontFamily="Cascadia Code,Consolas,Courier New"
-                                           VerticalAlignment="Center"
-                                           Visibility="{Binding IsLeaf, Converter={StaticResource BoolToVisConverter}}">
-                                    <Run Text="= "/>
-                                    <Run Text="{Binding Value, Mode=OneWay}"/>
-                                </TextBlock>
-                            </StackPanel>
+                                    </Run.Style>
+                                </Run>
+                                <!-- OID -->
+                                <Run Text="  " FontSize="2"/>
+                                <Run Text="{Binding Oid, Mode=OneWay}" FontSize="10"
+                                     FontFamily="Cascadia Code,Consolas,Courier New"
+                                     Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <!-- = Value (leaf only, via binding) -->
+                                <Run Text="{Binding ValueDisplay, Mode=OneWay}" FontSize="11"
+                                     FontFamily="Cascadia Code,Consolas,Courier New"
+                                     Foreground="{StaticResource AccentBlueBrush}"/>
+                            </TextBlock>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
@@ -266,6 +312,60 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+            </Grid>
+        </Border>
+        <!-- Query Results Panel (Row 3) -->
+        <Border Grid.Row="3" Style="{StaticResource SectionBorder}" Margin="0,4,0,0"
+                MaxHeight="200"
+                Visibility="{Binding TreeQueryResults.Count, Converter={StaticResource BoolToVisConverter}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <!-- Header -->
+                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Query Results" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <Border Background="#2A3A2A" CornerRadius="8" Padding="6,2" Margin="8,0,0,0"
+                                BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1">
+                            <TextBlock FontSize="9" FontWeight="Bold" Foreground="{StaticResource AccentGreenBrush}">
+                                <Run Text="{Binding TreeQueryResults.Count, Mode=OneWay}"/>
+                            </TextBlock>
+                        </Border>
+                        <TextBlock Text="{Binding TreeQueryStatus}" FontSize="10" Margin="10,0,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button DockPanel.Dock="Right" Content="Clear"
+                            Command="{Binding ClearTreeQueryResultsCommand}"
+                            HorizontalAlignment="Right" Padding="8,2" FontSize="10"/>
+                </DockPanel>
+                <!-- Results grid -->
+                <DataGrid Grid.Row="1" ItemsSource="{Binding TreeQueryResults}"
+                          AutoGenerateColumns="False" IsReadOnly="True" BorderThickness="0"
+                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
+                          HeadersVisibility="Column" CanUserResizeRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="60"/>
+                        <DataGridTextColumn Header="OP" Binding="{Binding Operation}" Width="50"/>
+                        <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="2*"/>
+                        <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="TYPE" Binding="{Binding ValueType}" Width="90"/>
+                        <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="2*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSuccess}" Value="False">
+                                            <Setter Property="Foreground" Value="#FF6B6B"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
             </Grid>
         </Border>
     </Grid>

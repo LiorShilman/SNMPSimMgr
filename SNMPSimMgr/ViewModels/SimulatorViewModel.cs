@@ -207,6 +207,10 @@ public partial class SimulatorViewModel : ObservableObject
         });
 
         SimulatorPort++; // Next device gets next port
+
+        // Register endpoint so MIB Browser can route GET/SET/WALK to the simulator
+        SnmpRecorderService.SimulatorEndpoints[device.Id] = (listenIp, port);
+
         RefreshSelectedDeviceState();
     }
 
@@ -225,6 +229,9 @@ public partial class SimulatorViewModel : ObservableObject
             var status = ActiveSimulators.FirstOrDefault(s => s.DeviceId == device.Id);
             if (status != null)
                 ActiveSimulators.Remove(status);
+
+            // Unregister simulator endpoint
+            SnmpRecorderService.SimulatorEndpoints.TryRemove(device.Id, out _);
         }
         RefreshSelectedDeviceState();
     }
@@ -239,6 +246,7 @@ public partial class SimulatorViewModel : ObservableObject
         }
         _simulators.Clear();
         ActiveSimulators.Clear();
+        SnmpRecorderService.SimulatorEndpoints.Clear();
         LogEntries.Insert(0,"All simulators stopped.");
         RefreshSelectedDeviceState();
     }

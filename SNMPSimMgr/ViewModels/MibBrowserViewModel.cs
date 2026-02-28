@@ -34,6 +34,11 @@ public partial class MibBrowserViewModel : ObservableObject
     [ObservableProperty] private bool _hasDevice;
     [ObservableProperty] private string _exportStatus = string.Empty;
 
+    // Context menu query results
+    public ObservableCollection<QueryResultItem> TreeQueryResults { get; } = new();
+    [ObservableProperty] private bool _isTreeQuerying;
+    [ObservableProperty] private string _treeQueryStatus = string.Empty;
+
     // Panel mode properties
     [ObservableProperty] private bool _showPanel;
     [ObservableProperty] private MibPanelSchema? _panelSchema;
@@ -331,6 +336,7 @@ public partial class MibBrowserViewModel : ObservableObject
                 var name = ResolveName(currentPath, parts[i]);
 
                 var isLeaf = (i == parts.Length - 1);
+                _mibStore.LoadedOids.TryGetValue(currentPath, out var mibDef);
                 var node = new OidTreeNode
                 {
                     Oid = currentPath,
@@ -338,6 +344,7 @@ public partial class MibBrowserViewModel : ObservableObject
                     DisplayName = name,
                     Value = isLeaf ? record.Value : null,
                     ValueType = isLeaf ? record.ValueType : null,
+                    Access = mibDef?.Access,
                     IsLeaf = isLeaf
                 };
 
@@ -1053,6 +1060,407 @@ public partial class MibBrowserViewModel : ObservableObject
         foreach (var child in node.Children)
             SetExpandedRecursive(child, expanded);
     }
+
+    // ── Context Menu: SNMP GET ──
+
+    [RelayCommand]
+    private async Task ContextGet(OidTreeNode? node)
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null || node == null) return;
+        var target = SnmpRecorderService.ResolveTarget(device);
+
+        IsTreeQuerying = true;
+        TreeQueryStatus = $"GET {node.Oid}...";
+        try
+        {
+            var oid = node.IsLeaf && !node.Oid.EndsWith(".0") ? node.Oid + ".0" : node.Oid;
+            var result = await _recorder.GetSingleAsync(target, oid);
+            if (result != null)
+            {
+                TreeQueryResults.Insert(0, new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "GET",
+                    Oid = result.Oid,
+                    Name = ResolveName(result.Oid, ""),
+                    ValueType = result.ValueType,
+                    Value = result.Value,
+                    IsSuccess = true
+                });
+                // Update the node's displayed value in the tree
+                if (node.IsLeaf)
+                    node.Value = result.Value;
+                TreeQueryStatus = $"GET OK — {result.Value}";
+            }
+            else
+            {
+                TreeQueryResults.Insert(0, new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "GET",
+                    Oid = oid,
+                    Name = node.DisplayName,
+                    Value = "No response",
+                    IsSuccess = false
+                });
+                TreeQueryStatus = "GET — No response";
+            }
+        }
+        catch (Exception ex)
+        {
+            TreeQueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "GET",
+                Oid = node.Oid,
+                Name = node.DisplayName,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+            TreeQueryStatus = $"GET error: {ex.Message}";
+        }
+        finally
+        {
+            IsTreeQuerying = false;
+        }
+    }
+
+    // ── Context Menu: SNMP SET ──
+
+    // Known SNMP value types for the SET dialog
+    private static readonly string[] SnmpValueTypes =
+        { "Integer32", "OctetString", "ObjectIdentifier", "IpAddress", "Counter32", "Gauge32", "TimeTicks", "Counter64" };
+
+    /// <summary>Resolve the best SNMP type name for a node by checking: live type, MIB Syntax/BaseType, then fallback.</summary>
+    private string ResolveSnmpType(OidTreeNode node, string? liveValueType = null)
+    {
+        // 1. Live value type from GET response (most accurate)
+        if (!string.IsNullOrEmpty(liveValueType) && liveValueType != "Null" &&
+            Array.IndexOf(SnmpValueTypes, liveValueType) >= 0)
+            return liveValueType;
+
+        // 2. Cached node ValueType (only if it's a valid SNMP type)
+        if (!string.IsNullOrEmpty(node.ValueType) && node.ValueType != "Null" &&
+            Array.IndexOf(SnmpValueTypes, node.ValueType) >= 0)
+            return node.ValueType;
+
+        // 3. MIB definition Syntax → map common MIB types to SNMP types
+        var oid = node.Oid;
+        if (_mibStore.LoadedOids.TryGetValue(oid, out var def))
+        {
+            var syntax = def.BaseType ?? def.Syntax;
+            if (!string.IsNullOrEmpty(syntax))
+                return MapMibSyntaxToSnmpType(syntax);
+        }
+
+        return "OctetString";
+    }
+
+    private static string MapMibSyntaxToSnmpType(string syntax)
+    {
+        var s = syntax.Trim();
+        if (s.StartsWith("INTEGER", StringComparison.OrdinalIgnoreCase) || s == "TruthValue" || s == "RowStatus")
+            return "Integer32";
+        if (s.Equals("OCTET STRING", StringComparison.OrdinalIgnoreCase) || s == "DisplayString" || s == "SnmpAdminString")
+            return "OctetString";
+        if (s.Equals("OBJECT IDENTIFIER", StringComparison.OrdinalIgnoreCase))
+            return "ObjectIdentifier";
+        if (s.Equals("IpAddress", StringComparison.OrdinalIgnoreCase) || s == "NetworkAddress")
+            return "IpAddress";
+        if (s.StartsWith("Counter32", StringComparison.OrdinalIgnoreCase) || s == "Counter")
+            return "Counter32";
+        if (s.StartsWith("Gauge32", StringComparison.OrdinalIgnoreCase) || s == "Gauge" || s == "Unsigned32")
+            return "Gauge32";
+        if (s.Equals("TimeTicks", StringComparison.OrdinalIgnoreCase))
+            return "TimeTicks";
+        if (s.StartsWith("Counter64", StringComparison.OrdinalIgnoreCase))
+            return "Counter64";
+        return "OctetString";
+    }
+
+    [RelayCommand]
+    private async Task ContextSet(OidTreeNode? node)
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null || node == null) return;
+        var target = SnmpRecorderService.ResolveTarget(device);
+
+        var oid = node.IsLeaf && !node.Oid.EndsWith(".0") ? node.Oid + ".0" : node.Oid;
+
+        // Quick live GET to fetch actual current value and type (3s timeout — don't block the user)
+        IsTreeQuerying = true;
+        TreeQueryStatus = $"Reading {oid}...";
+        SnmpRecord? liveResult = null;
+        try
+        {
+            var getTask = _recorder.GetSingleAsync(target, oid);
+            if (await Task.WhenAny(getTask, Task.Delay(3000)) == getTask)
+                liveResult = await getTask;
+        }
+        catch { /* continue with empty value */ }
+        finally { IsTreeQuerying = false; }
+
+        var currentValue = liveResult?.Value ?? "";
+        var valueType = ResolveSnmpType(node, liveResult?.ValueType);
+
+        // Look up MIB enum values for hint display
+        string? enumHint = null;
+        _mibStore.LoadedOids.TryGetValue(node.Oid, out var mibDef);
+        if (mibDef?.EnumValues != null && mibDef.EnumValues.Count > 0)
+        {
+            var pairs = mibDef.EnumValues.Select(kv => $"{kv.Value} = {kv.Key}");
+            enumHint = string.Join(",  ", pairs);
+        }
+
+        // Build SET dialog
+        var dialog = new System.Windows.Window
+        {
+            Title = $"SET {node.DisplayName}",
+            Width = 460, Height = enumHint != null ? 300 : 240,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+            Owner = System.Windows.Application.Current.MainWindow,
+            Background = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A1E2E")),
+            ResizeMode = System.Windows.ResizeMode.NoResize
+        };
+
+        var stack = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
+
+        // OID label
+        var lblOid = new System.Windows.Controls.TextBlock
+        {
+            Text = $"OID: {oid}",
+            Foreground = System.Windows.Media.Brushes.LightGray,
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
+            FontSize = 11, Margin = new System.Windows.Thickness(0, 0, 0, 8)
+        };
+
+        // Type (read-only — auto-resolved from MIB)
+        var typePanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
+        var lblType = new System.Windows.Controls.TextBlock
+        {
+            Text = "Type:",
+            Foreground = System.Windows.Media.Brushes.Gray,
+            FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0)
+        };
+        System.Windows.Controls.DockPanel.SetDock(lblType, System.Windows.Controls.Dock.Left);
+        var lblTypeValue = new System.Windows.Controls.TextBlock
+        {
+            Text = valueType,
+            Foreground = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4FC3F7")),
+            FontSize = 12, FontWeight = System.Windows.FontWeights.SemiBold,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center
+        };
+        typePanel.Children.Add(lblType);
+        typePanel.Children.Add(lblTypeValue);
+
+        // Current value (read-only)
+        var currentPanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
+        var lblCurrent = new System.Windows.Controls.TextBlock
+        {
+            Text = "Current:",
+            Foreground = System.Windows.Media.Brushes.Gray,
+            FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0)
+        };
+        System.Windows.Controls.DockPanel.SetDock(lblCurrent, System.Windows.Controls.Dock.Left);
+        var lblCurrentValue = new System.Windows.Controls.TextBlock
+        {
+            Text = string.IsNullOrEmpty(currentValue) ? "(no response)" : currentValue,
+            Foreground = System.Windows.Media.Brushes.LightGreen,
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
+            FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            TextTrimming = System.Windows.TextTrimming.CharacterEllipsis
+        };
+        currentPanel.Children.Add(lblCurrent);
+        currentPanel.Children.Add(lblCurrentValue);
+
+        // Enum hint (if MIB defines named values)
+        System.Windows.Controls.TextBlock? lblEnumHint = null;
+        if (enumHint != null)
+        {
+            lblEnumHint = new System.Windows.Controls.TextBlock
+            {
+                Text = $"Values: {enumHint}",
+                Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFB74D")),
+                FontSize = 10, TextWrapping = System.Windows.TextWrapping.Wrap,
+                Margin = new System.Windows.Thickness(0, 0, 0, 8)
+            };
+        }
+
+        // New value input
+        var lblVal = new System.Windows.Controls.TextBlock
+        {
+            Text = "New value:",
+            Foreground = System.Windows.Media.Brushes.White,
+            FontSize = 12, Margin = new System.Windows.Thickness(0, 0, 0, 4)
+        };
+
+        var txtValue = new System.Windows.Controls.TextBox
+        {
+            Text = currentValue,
+            FontSize = 13, Padding = new System.Windows.Thickness(6, 4, 6, 4)
+        };
+        txtValue.SelectAll();
+
+        var btnPanel = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new System.Windows.Thickness(0, 12, 0, 0)
+        };
+
+        var btnOk = new System.Windows.Controls.Button
+        {
+            Content = "SET", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
+            IsDefault = true
+        };
+        btnOk.Click += (_, _) => { dialog.DialogResult = true; };
+
+        var btnCancel = new System.Windows.Controls.Button
+        {
+            Content = "Cancel", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
+            Margin = new System.Windows.Thickness(8, 0, 0, 0), IsCancel = true
+        };
+
+        btnPanel.Children.Add(btnOk);
+        btnPanel.Children.Add(btnCancel);
+        stack.Children.Add(lblOid);
+        stack.Children.Add(typePanel);
+        stack.Children.Add(currentPanel);
+        if (lblEnumHint != null) stack.Children.Add(lblEnumHint);
+        stack.Children.Add(lblVal);
+        stack.Children.Add(txtValue);
+        stack.Children.Add(btnPanel);
+        dialog.Content = stack;
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var newValue = txtValue.Text;
+        IsTreeQuerying = true;
+        TreeQueryStatus = $"SET {oid} = {newValue}...";
+        try
+        {
+            var success = await _recorder.SetAsync(target, oid, newValue, valueType);
+            TreeQueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "SET",
+                Oid = oid,
+                Name = node.DisplayName,
+                ValueType = valueType,
+                Value = success ? newValue : "SET failed",
+                IsSuccess = success
+            });
+
+            if (success)
+            {
+                if (node.IsLeaf) node.Value = newValue;
+                TreeQueryStatus = $"SET OK — {node.DisplayName} = {newValue}";
+            }
+            else
+            {
+                TreeQueryStatus = $"SET failed for {node.DisplayName}";
+            }
+        }
+        catch (Exception ex)
+        {
+            TreeQueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "SET",
+                Oid = oid,
+                Name = node.DisplayName,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+            TreeQueryStatus = $"SET error: {ex.Message}";
+        }
+        finally
+        {
+            IsTreeQuerying = false;
+        }
+    }
+
+    // ── Context Menu: SNMP WALK (subtree) ──
+
+    [RelayCommand]
+    private async Task ContextWalk(OidTreeNode? node)
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null || node == null) return;
+        var target = SnmpRecorderService.ResolveTarget(device);
+
+        IsTreeQuerying = true;
+        TreeQueryStatus = $"Walking {node.Oid}...";
+        try
+        {
+            var results = await _recorder.WalkSubtreeAsync(target, node.Oid);
+
+            foreach (var r in results)
+            {
+                TreeQueryResults.Insert(0, new QueryResultItem
+                {
+                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                    Operation = "WALK",
+                    Oid = r.Oid,
+                    Name = ResolveName(r.Oid, ""),
+                    ValueType = r.ValueType,
+                    Value = r.Value,
+                    IsSuccess = true
+                });
+            }
+
+            // Update leaf values in the tree
+            var resultLookup = results.ToDictionary(r => r.Oid, r => r);
+            UpdateTreeValues(node, resultLookup);
+
+            TreeQueryStatus = $"Walk complete — {results.Count} OIDs under {node.DisplayName}";
+        }
+        catch (Exception ex)
+        {
+            TreeQueryResults.Insert(0, new QueryResultItem
+            {
+                Time = DateTime.Now.ToString("HH:mm:ss"),
+                Operation = "WALK",
+                Oid = node.Oid,
+                Name = node.DisplayName,
+                Value = $"Error: {ex.Message}",
+                IsSuccess = false
+            });
+            TreeQueryStatus = $"Walk error: {ex.Message}";
+        }
+        finally
+        {
+            IsTreeQuerying = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearTreeQueryResults()
+    {
+        TreeQueryResults.Clear();
+        TreeQueryStatus = string.Empty;
+    }
+
+    private static void UpdateTreeValues(OidTreeNode node, Dictionary<string, SnmpRecord> lookup)
+    {
+        if (node.IsLeaf)
+        {
+            // Try exact OID, then with .0 suffix
+            if (lookup.TryGetValue(node.Oid, out var record))
+                node.Value = record.Value;
+            else if (lookup.TryGetValue(node.Oid + ".0", out record))
+                node.Value = record.Value;
+        }
+        foreach (var child in node.Children)
+            UpdateTreeValues(child, lookup);
+    }
 }
 
 public partial class OidTreeNode : ObservableObject
@@ -1060,13 +1468,34 @@ public partial class OidTreeNode : ObservableObject
     public string Oid { get; set; } = string.Empty;
     public string Segment { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
-    public string? Value { get; set; }
+    [ObservableProperty] private string? _value;
     public string? ValueType { get; set; }
+    public string? Access { get; set; }
     public bool IsLeaf { get; set; }
     public ObservableCollection<OidTreeNode> Children { get; } = new();
 
     [ObservableProperty] private bool _isExpanded;
     [ObservableProperty] private bool _isHighlighted;
+
+    partial void OnValueChanged(string? value)
+    {
+        OnPropertyChanged(nameof(ValueDisplay));
+        OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(TreeLabel));
+    }
+
+    /// <summary>True when MIB ACCESS is read-write or read-create.</summary>
+    public bool IsWritable => Access != null &&
+        (Access.IndexOf("write", StringComparison.OrdinalIgnoreCase) >= 0 ||
+         Access.IndexOf("create", StringComparison.OrdinalIgnoreCase) >= 0);
+
+    /// <summary>True when node has children (branch node — suitable for WALK).</summary>
+    public bool HasChildren => Children.Count > 0;
+
+    /// <summary>For tree binding: " = value" for leaves, empty for branches. Truncated to 80 chars.</summary>
+    public string ValueDisplay => IsLeaf && Value != null
+        ? (Value.Length > 80 ? $"  =  {Value.Substring(0, 80)}..." : $"  =  {Value}")
+        : string.Empty;
 
     public string Label => Value != null
         ? $"{DisplayName} ({Oid}) = {Value}"
@@ -1077,7 +1506,7 @@ public partial class OidTreeNode : ObservableObject
         : DisplayName;
 
     private static string TruncateValue(string val, int max) =>
-        val.Length > max ? val[..max] + "..." : val;
+        val.Length > max ? val.Substring(0, max) + "..." : val;
 }
 
 public class SystemInfoItem

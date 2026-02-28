@@ -49,7 +49,8 @@
           }
           @case ('toggle') {
             <label class="toggle-switch">
-              <input type="checkbox" [title]="field.name"
+              <input type="checkbox" title="Toggle" aria-label="Toggle"
+                     [attr.title]="field.name" [attr.aria-label]="field.name"
                      [checked]="editValue === toggleOnValue"
                      (change)="editValue = $any($event.target).checked ? toggleOnValue : toggleOffValue">
               <span class="toggle-slider"></span>
@@ -61,18 +62,21 @@
                    [min]="field.minValue ?? ''"
                    [max]="field.maxValue ?? ''"
                    class="input-field" placeholder="Enter number"
-                   [title]="field.name">
+                   title="Number" aria-label="Number"
+                   [attr.title]="field.name" [attr.aria-label]="field.name">
           }
           @case ('ip') {
             <input type="text" [(ngModel)]="editValue"
                    class="input-field" placeholder="0.0.0.0"
-                   [title]="field.name"
+                   title="IP address" aria-label="IP address"
+                   [attr.title]="field.name" [attr.aria-label]="field.name"
                    pattern="\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}">
           }
           @default {
             <input type="text" [(ngModel)]="editValue"
                    class="input-field"
-                   [title]="field.name"
+                   title="Value" aria-label="Value" placeholder="Enter value"
+                   [attr.title]="field.name" [attr.aria-label]="field.name"
                    [maxlength]="field.maxLength ?? 255"
                    [placeholder]="field.defaultValue || 'Enter value'">
           }

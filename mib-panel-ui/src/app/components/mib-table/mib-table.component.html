@@ -38,7 +38,7 @@
                     @if (isEditingCell(row.index, col.oid)) {
                       <div class="cell-edit">
                         @if (col.options?.length) {
-                          <select [(ngModel)]="editValue" class="cell-input" [attr.aria-label]="friendlyName(col.name)" [title]="'Select ' + friendlyName(col.name)">
+                          <select [(ngModel)]="editValue" class="cell-input" title="Select" aria-label="Select" [attr.aria-label]="friendlyName(col.name)" [attr.title]="'Select ' + friendlyName(col.name)">
                             @for (opt of col.options; track opt.value) {
                               <option [value]="opt.value">{{ opt.label }}</option>
                             }
@@ -47,7 +47,9 @@
                           <input [(ngModel)]="editValue"
                                  class="cell-input"
                                  [type]="col.inputType === 'number' ? 'number' : 'text'"
-                                 [title]="friendlyName(col.name)"
+                                 title="Cell value" aria-label="Cell value" placeholder="Enter value"
+                                 [attr.title]="friendlyName(col.name)"
+                                 [attr.aria-label]="friendlyName(col.name)"
                                  [placeholder]="friendlyName(col.name)"
                                  (keydown.enter)="sendCellSet()"
                                  (keydown.escape)="cancelCellEdit()">

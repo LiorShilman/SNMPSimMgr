@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -15,6 +16,33 @@ public class SnmpRecorderService
     // without needing to force-close the socket (which causes NRE in SnmpSharpNet)
     private const int WalkTimeout = 2000;
     private const int WalkRetries = 1;
+
+    /// <summary>
+    /// Active simulator endpoints: device ID → (listenIp, port).
+    /// When a device is simulating, GET/SET/WALK should be routed here instead of the real device address.
+    /// </summary>
+    public static ConcurrentDictionary<string, (string Ip, int Port)> SimulatorEndpoints { get; } = new();
+
+    /// <summary>
+    /// Returns a DeviceProfile pointing to the simulator if one is active, otherwise the original device.
+    /// </summary>
+    public static DeviceProfile ResolveTarget(DeviceProfile device)
+    {
+        if (SimulatorEndpoints.TryGetValue(device.Id, out var ep))
+        {
+            return new DeviceProfile
+            {
+                Id = device.Id,
+                Name = device.Name,
+                IpAddress = ep.Ip == "0.0.0.0" ? "127.0.0.1" : ep.Ip,
+                Port = ep.Port,
+                Version = device.Version,
+                Community = device.Community,
+                V3Credentials = device.V3Credentials
+            };
+        }
+        return device;
+    }
 
     public event Action<string>? LogMessage;
     public event Action<int>? ProgressChanged;
@@ -40,20 +68,28 @@ public class SnmpRecorderService
         DeviceProfile device,
         CancellationToken ct = default)
     {
-        return await Task.Run(() => WalkDevice(device, ct), ct);
+        return await Task.Run(() => WalkDevice(device, "1.3.6.1", ct), ct);
     }
 
-    private List<SnmpRecord> WalkDevice(DeviceProfile device, CancellationToken ct)
+    public async Task<List<SnmpRecord>> WalkSubtreeAsync(
+        DeviceProfile device,
+        string rootOid,
+        CancellationToken ct = default)
+    {
+        return await Task.Run(() => WalkDevice(device, rootOid, ct), ct);
+    }
+
+    private List<SnmpRecord> WalkDevice(DeviceProfile device, string rootOid, CancellationToken ct)
     {
         var results = new List<SnmpRecord>();
-        Log($"Starting SNMP Walk on {device.Name} ({device.IpAddress})...");
+        Log($"Starting SNMP Walk on {device.Name} ({device.IpAddress}) from {rootOid}...");
 
         try
         {
             if (device.Version == SnmpVersionOption.V2c)
-                WalkV2c(device, results, ct);
+                WalkV2c(device, rootOid, results, ct);
             else
-                WalkV3(device, results, ct);
+                WalkV3(device, rootOid, results, ct);
         }
         catch (OperationCanceledException)
         {
@@ -70,7 +106,7 @@ public class SnmpRecorderService
         return results;
     }
 
-    private void WalkV2c(DeviceProfile device, List<SnmpRecord> results, CancellationToken ct)
+    private void WalkV2c(DeviceProfile device, string rootOidStr, List<SnmpRecord> results, CancellationToken ct)
     {
         // Use shorter timeout for walk so cancellation is responsive
         // (no socket-close callback — avoids NRE inside SnmpSharpNet)
@@ -78,7 +114,7 @@ public class SnmpRecorderService
             ResolveAddress(device.IpAddress), device.Port, WalkTimeout, WalkRetries);
 
         var param = new AgentParameters(SnmpVersion.Ver2, new OctetString(device.Community));
-        var rootOid = new Oid("1.3.6.1");
+        var rootOid = new Oid(rootOidStr);
         var lastOid = rootOid;
         int count = 0;
 
@@ -124,14 +160,14 @@ public class SnmpRecorderService
         }
     }
 
-    private void WalkV3(DeviceProfile device, List<SnmpRecord> results, CancellationToken ct)
+    private void WalkV3(DeviceProfile device, string rootOidStr, List<SnmpRecord> results, CancellationToken ct)
     {
         var target = new UdpTarget(
             ResolveAddress(device.IpAddress), device.Port, WalkTimeout, WalkRetries);
 
         var param = BuildV3Params(target, device);
 
-        var rootOid = new Oid("1.3.6.1");
+        var rootOid = new Oid(rootOidStr);
         var lastOid = rootOid;
         int count = 0;
 
