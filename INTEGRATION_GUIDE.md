@@ -1181,6 +1181,289 @@ SnmpHub.BroadcastMibUpdate("device-123", values);
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+### 6.7 WPF-Side Wiring — Complete App Startup Pattern
+
+This is the most important piece: how your WPF `App.xaml.cs` (or `MainWindow`) ties everything
+together — initializing the Hub, starting the server, and wiring device events to broadcasts.
+
+#### Full App.xaml.cs Example
+
+```csharp
+using System;
+using System.Collections.Specialized;
+using System.Windows;
+using Microsoft.Owin.Hosting;
+
+public partial class App : Application
+{
+    private IDisposable? _signalRHost;
+    private bool _signalRRunning;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // ── 1. Create your services ──────────────────────────────
+        var deviceStore    = new DeviceProfileStore();    // loads/saves device configs
+        var snmpService    = new SnmpPollingService();    // polls devices for values
+        var schemaBuilder  = new SchemaBuilderService();  // builds MibPanelSchema from device data
+        var simulatorVm    = new SimulatorViewModel();    // manages running simulators
+
+        // ── 2. Set Hub static references ─────────────────────────
+        // SignalR 2.0 creates a new Hub instance per call — statics
+        // are the standard pattern without a DI container.
+        SnmpHub.Store         = deviceStore;
+        SnmpHub.ExportService = schemaBuilder;
+        SnmpHub.SimulatorVm   = simulatorVm;
+        // Add any other services your Hub methods need
+
+        // ── 3. Start SignalR server ──────────────────────────────
+        StartSignalR(port: 5050);
+
+        // ── 4. Wire device events → SignalR broadcasts ───────────
+        WireEventBroadcasts(snmpService, simulatorVm);
+
+        // ── 5. Create and show main window ───────────────────────
+        var mainWindow = new MainWindow { DataContext = simulatorVm };
+        mainWindow.Show();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // SignalR Server Startup
+    // ─────────────────────────────────────────────────────────────
+    private void StartSignalR(int port)
+    {
+        try
+        {
+            // Try binding to all interfaces (requires admin or urlacl)
+            var url = $"http://+:{port}";
+            _signalRHost = WebApp.Start<SignalRStartup>(url);
+            _signalRRunning = true;
+        }
+        catch
+        {
+            try
+            {
+                // Fallback: localhost only (no admin needed)
+                var url = $"http://localhost:{port}";
+                _signalRHost = WebApp.Start<SignalRStartup>(url);
+                _signalRRunning = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"SignalR failed to start:\n{ex.Message}\n\n" +
+                    "The app will work without real-time web panel.\n\n" +
+                    "Tip: run as Admin, or execute:\n" +
+                    $"netsh http add urlacl url=http://+:{port}/ user=Everyone",
+                    "SignalR", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Event → Broadcast Wiring
+    // ─────────────────────────────────────────────────────────────
+    private void WireEventBroadcasts(
+        SnmpPollingService poller,
+        SimulatorViewModel simulatorVm)
+    {
+        // ┌──────────────────────────────────────────────────┐
+        // │  PATTERN A: Individual value changes             │
+        // │  Fire BroadcastTraffic for every GET/SET result  │
+        // └──────────────────────────────────────────────────┘
+        poller.ValueReceived += (deviceName, operation, oid, value, sourceIp) =>
+        {
+            if (!_signalRRunning) return;
+            SnmpHub.BroadcastTraffic(deviceName, operation, oid, value, sourceIp);
+            // Angular receives → onTrafficReceived → auto-updates matching field
+        };
+
+        // ┌──────────────────────────────────────────────────┐
+        // │  PATTERN B: Device status changes                │
+        // │  Fire BroadcastDeviceStatus on start/stop        │
+        // └──────────────────────────────────────────────────┘
+
+        // Option 1: ObservableCollection — fires on add/remove
+        simulatorVm.ActiveSimulators.CollectionChanged += (_, args) =>
+        {
+            if (!_signalRRunning) return;
+
+            if (args.Action == NotifyCollectionChangedAction.Add && args.NewItems != null)
+            {
+                foreach (SimulatorDeviceStatus s in args.NewItems)
+                    SnmpHub.BroadcastDeviceStatus(s.DeviceId, s.DeviceName, "Running");
+            }
+            if (args.Action == NotifyCollectionChangedAction.Remove && args.OldItems != null)
+            {
+                foreach (SimulatorDeviceStatus s in args.OldItems)
+                    SnmpHub.BroadcastDeviceStatus(s.DeviceId, s.DeviceName, "Stopped");
+            }
+            // Angular receives → onDeviceStatusChanged → updates device picker
+        };
+
+        // Option 2: Simple event (if you don't use ObservableCollection)
+        // simulatorVm.DeviceStarted += (id, name) =>
+        // {
+        //     if (_signalRRunning)
+        //         SnmpHub.BroadcastDeviceStatus(id, name, "Running");
+        // };
+        // simulatorVm.DeviceStopped += (id, name) =>
+        // {
+        //     if (_signalRRunning)
+        //         SnmpHub.BroadcastDeviceStatus(id, name, "Stopped");
+        // };
+
+        // ┌──────────────────────────────────────────────────┐
+        // │  PATTERN C: Batch value updates                  │
+        // │  Fire BroadcastMibUpdate after a full poll cycle  │
+        // └──────────────────────────────────────────────────┘
+        poller.PollCycleCompleted += (deviceId, allValues) =>
+        {
+            if (!_signalRRunning) return;
+
+            // allValues = Dictionary<string, string> { oid → value }
+            SnmpHub.BroadcastMibUpdate(deviceId, allValues);
+            // Angular receives → onMibUpdated → updates all matching fields at once
+            // More efficient than sending 100 individual BroadcastTraffic calls
+        };
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _signalRHost?.Dispose();   // stop SignalR server
+        base.OnExit(e);
+    }
+}
+```
+
+#### Your Polling Service — Raising Events
+
+Here's an example of a polling service that raises the events consumed above:
+
+```csharp
+public class SnmpPollingService
+{
+    // ── Events that App.xaml.cs wires to SignalR broadcasts ──
+
+    /// <summary>Fires for each individual value received.</summary>
+    public event Action<string, string, string, string, string>? ValueReceived;
+    //                   deviceName, operation, oid,    value,  sourceIp
+
+    /// <summary>Fires after a complete poll cycle with all values.</summary>
+    public event Action<string, Dictionary<string, string>>? PollCycleCompleted;
+    //                   deviceId, { oid → value }
+
+    private readonly System.Timers.Timer _timer;
+
+    public SnmpPollingService(int intervalMs = 5000)
+    {
+        _timer = new System.Timers.Timer(intervalMs);
+        _timer.Elapsed += async (_, _) => await PollAllDevicesAsync();
+    }
+
+    public void StartPolling() => _timer.Start();
+    public void StopPolling()  => _timer.Stop();
+
+    private async Task PollAllDevicesAsync()
+    {
+        // For each active device, poll all its OIDs
+        foreach (var device in GetActiveDevices())
+        {
+            var allValues = new Dictionary<string, string>();
+
+            foreach (var oid in device.MonitoredOids)
+            {
+                try
+                {
+                    var value = await SnmpGetAsync(device.IpAddress, device.Port,
+                                                   device.Community, oid);
+
+                    allValues[oid] = value;
+
+                    // Fire individual value event → BroadcastTraffic
+                    ValueReceived?.Invoke(
+                        device.Name,       // deviceName
+                        "GET",             // operation
+                        oid,               // e.g., "1.3.6.1.2.1.1.5.0"
+                        value,             // e.g., "Router-Lab-1"
+                        device.IpAddress   // sourceIp
+                    );
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Poll failed: {oid} — {ex.Message}");
+                }
+            }
+
+            // Fire batch event → BroadcastMibUpdate (more efficient)
+            if (allValues.Count > 0)
+                PollCycleCompleted?.Invoke(device.Id, allValues);
+        }
+    }
+
+    private Task<string> SnmpGetAsync(string ip, int port, string community, string oid)
+    {
+        // YOUR SNMP library call here (e.g., SharpSNMP, SnmpSharpNet)
+        throw new NotImplementedException();
+    }
+
+    private IEnumerable<DeviceProfile> GetActiveDevices()
+    {
+        throw new NotImplementedException();
+    }
+}
+```
+
+#### When to Use Each Broadcast Pattern
+
+| Pattern | Method | When to Use | Angular Handler |
+| ------- | ------ | ----------- | --------------- |
+| **Individual value** | `BroadcastTraffic()` | After each GET/SET — real-time field updates | `onTrafficReceived` |
+| **Device status** | `BroadcastDeviceStatus()` | Device started/stopped/connected/offline | `onDeviceStatusChanged` |
+| **Batch update** | `BroadcastMibUpdate()` | After full poll cycle — update all fields at once | `onMibUpdated` |
+| **Trap** | `BroadcastTrap()` | When an SNMP trap is received | `onTrapReceived` |
+
+#### How Angular Processes Each Broadcast
+
+```
+BroadcastTraffic("MyDevice", "GET", "1.3.6.1.2.1.1.5.0", "Router-1", "10.0.0.1")
+    │
+    ▼  SignalR WebSocket
+    │
+    ▼  Angular SignalRService.latestTraffic signal updates
+    │
+    ▼  MibPanelService effect() detects change
+    │
+    ▼  Finds field with matching OID in current schema
+    │
+    ▼  Updates field.currentValue = "Router-1"
+    │
+    ▼  Emits new schema clone → Angular change detection
+    │
+    ▼  Component re-renders with new value (no page reload)
+```
+
+#### Thread Safety Note
+
+SignalR broadcasts can be called from **any thread** — SignalR handles the serialization
+and WebSocket delivery internally. However, if you need to read WPF UI-bound data
+(like `ObservableCollection`), use the Dispatcher:
+
+```csharp
+// Safe: broadcasting doesn't touch UI
+SnmpHub.BroadcastTraffic(name, "GET", oid, value, ip);  // ✓ Any thread
+
+// Needs Dispatcher: reading from ObservableCollection bound to UI
+Application.Current.Dispatcher.Invoke(() =>
+{
+    var items = viewModel.SomeObservableCollection.ToList();
+    // Now safe to iterate and broadcast
+    foreach (var item in items)
+        SnmpHub.BroadcastTraffic(item.Name, "GET", item.Oid, item.Value, item.Ip);
+});
+```
+
 ---
 
 ## 7. Customization
