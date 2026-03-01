@@ -20,6 +20,7 @@ public partial class App : Application
         var recorder = new SnmpRecorderService();
         var trapListener = new TrapListenerService();
         var trapGenerator = new TrapGeneratorService();
+        var oidWatch = new OidWatchService();
 
         var mibStore = new MibStore();
 
@@ -45,16 +46,46 @@ public partial class App : Application
         SnmpHub.DeviceListVm = deviceListVm;
         SnmpHub.MibStoreRef = mibStore;
         SnmpHub.TrapGen = trapGenerator;
+        SnmpHub.OidWatch = oidWatch;
 
         // When Recorder saves a session, refresh Simulator's session list
         recorderVm.SessionSaved += async () => await simulatorVm.RefreshSessionList();
 
-        // Wire existing events → SignalR broadcasts
+        // Wire existing events → SignalR broadcasts + MIB Browser live updates + OID watches
         simulatorVm.TrafficReceived += (deviceName, op, oid, val, sourceIp) =>
         {
             if (_signalRService.IsRunning)
                 SnmpHub.BroadcastTraffic(deviceName, op, oid, val, sourceIp);
+
+            // Update MIB Browser tree + OID watches + broadcast onOidChanged to Angular
+            if (op == "SET" || op == "GET")
+            {
+                Current.Dispatcher.BeginInvoke(() => mibBrowserVm.UpdateNodeValue(deviceName, oid, val));
+                var previousValue = oidWatch.NotifyChange(oid, val);
+
+                // Broadcast targeted change event to Angular for client-side automation
+                if (_signalRService.IsRunning && previousValue != val)
+                {
+                    var deviceId = simulatorVm.ActiveSimulators
+                        .FirstOrDefault(s => s.DeviceName == deviceName)?.DeviceId ?? "";
+                    SnmpHub.BroadcastOidChanged(deviceId, deviceName, oid, val, previousValue, sourceIp);
+                }
+            }
         };
+
+        // ── OID Watch examples ──
+        // Exact OID: fires when sysName changes
+        oidWatch.Watch("1.3.6.1.2.1.1.5.0", (oid, newValue, previousValue) =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[OidWatch] sysName changed: '{previousValue}' → '{newValue}'");
+        });
+
+        // Prefix (subtree): fires for ANY ifOperStatus change (.1, .2, .3, ...)
+        oidWatch.WatchPrefix("1.3.6.1.2.1.2.2.1.8", (oid, newValue, previousValue) =>
+        {
+            var status = newValue == "1" ? "UP" : "DOWN";
+            System.Diagnostics.Debug.WriteLine($"[OidWatch] Interface {oid}: {previousValue} → {status}");
+        });
 
         trapListener.TrapReceived += trap =>
         {

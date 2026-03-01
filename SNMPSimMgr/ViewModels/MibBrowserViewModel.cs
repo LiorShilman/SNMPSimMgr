@@ -19,6 +19,7 @@ public partial class MibBrowserViewModel : ObservableObject
     private readonly MibPanelExportService _exportService;
     private readonly SnmpRecorderService _recorder;
     private List<SnmpRecord> _allRecords = new();
+    private Dictionary<string, OidTreeNode> _nodeMap = new();
 
     public ObservableCollection<OidTreeNode> RootNodes { get; } = new();
     public ObservableCollection<SnmpRecord> FlatRecords { get; } = new();
@@ -241,6 +242,32 @@ public partial class MibBrowserViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Update a tree node's displayed value when the simulator value changes externally
+    /// (e.g., SET from Angular client, injection, scenario, automation).
+    /// </summary>
+    public void UpdateNodeValue(string deviceName, string oid, string value)
+    {
+        // Only update if this is the currently displayed device
+        if (string.IsNullOrEmpty(LoadedDeviceName) || !deviceName.Equals(LoadedDeviceName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Try exact OID match
+        if (_nodeMap.TryGetValue(oid, out var node) && node.IsLeaf)
+        {
+            node.Value = value;
+            return;
+        }
+
+        // Collapsed scalar: OID "x.y.z.0" → tree node "x.y.z"
+        if (oid.EndsWith(".0"))
+        {
+            var parentOid = oid[..^2];
+            if (_nodeMap.TryGetValue(parentOid, out node) && node.IsLeaf)
+                node.Value = value;
+        }
+    }
+
+    /// <summary>
     /// When no Walk data exists, create records from MIB definitions
     /// so Tree and Flat views show the MIB structure.
     /// </summary>
@@ -318,7 +345,8 @@ public partial class MibBrowserViewModel : ObservableObject
     private void BuildTree(List<SnmpRecord> records)
     {
         RootNodes.Clear();
-        var nodeMap = new Dictionary<string, OidTreeNode>();
+        _nodeMap.Clear();
+        var nodeMap = _nodeMap;
 
         foreach (var record in records)
         {
@@ -374,9 +402,21 @@ public partial class MibBrowserViewModel : ObservableObject
         foreach (var root in RootNodes)
             CollapseScalarInstances(root);
 
+        // Rebuild nodeMap from final tree (CollapseChains/CollapseScalarInstances change OIDs and remove nodes)
+        _nodeMap.Clear();
+        foreach (var root in RootNodes)
+            RebuildNodeMap(root);
+
         // Expand all nodes by default
         foreach (var root in RootNodes)
             SetExpandedRecursive(root, true);
+    }
+
+    private void RebuildNodeMap(OidTreeNode node)
+    {
+        _nodeMap[node.Oid] = node;
+        foreach (var child in node.Children)
+            RebuildNodeMap(child);
     }
 
     private void CollapseChains(OidTreeNode node)

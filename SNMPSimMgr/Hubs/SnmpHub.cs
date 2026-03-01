@@ -24,6 +24,7 @@ public class SnmpHub : Hub
     public static DeviceListViewModel? DeviceListVm { get; set; }
     public static MibStore? MibStoreRef { get; set; }
     public static TrapGeneratorService? TrapGen { get; set; }
+    public static OidWatchService? OidWatch { get; set; }
 
     // ── Schema cache ─────────────────────────────────────────────────
     // Avoids re-parsing MIBs and rebuilding the schema on every device switch.
@@ -488,6 +489,25 @@ public class SnmpHub : Hub
         {
             deviceId,
             values = updatedValues,
+            timestamp = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    /// Broadcast a targeted OID change event to Angular clients.
+    /// Includes previous value and source for client-side automation logic.
+    /// </summary>
+    public static void BroadcastOidChanged(string deviceId, string deviceName, string oid, string newValue, string previousValue, string source)
+    {
+        var context = GlobalHost.ConnectionManager.GetHubContext<SnmpHub>();
+        context.Clients.All.onOidChanged(new
+        {
+            deviceId,
+            deviceName,
+            oid,
+            newValue,
+            previousValue,
+            source,
             timestamp = DateTime.UtcNow
         });
     }

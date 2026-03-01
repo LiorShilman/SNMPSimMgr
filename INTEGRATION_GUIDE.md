@@ -14,6 +14,10 @@
 6. [WPF SignalR Hub — Full C# Implementation](#6-wpf-signalr-hub--full-c-implementation)
 7. [Customization](#7-customization)
 8. [Minimal Working Example](#8-minimal-working-example)
+9. [OID Watch Service — Subscribe to Specific MIB Changes](#9-oid-watch-service--subscribe-to-specific-mib-changes)
+10. [MIB Browser Live Updates](#10-mib-browser-live-updates)
+11. [Full Automation (E2E Testing)](#11-full-automation-e2e-testing)
+12. [Angular: onOidChanged Event](#12-angular-onoidchanged-event)
 
 ---
 
@@ -1423,6 +1427,7 @@ public class SnmpPollingService
 | **Device status** | `BroadcastDeviceStatus()` | Device started/stopped/connected/offline | `onDeviceStatusChanged` |
 | **Batch update** | `BroadcastMibUpdate()` | After full poll cycle — update all fields at once | `onMibUpdated` |
 | **Trap** | `BroadcastTrap()` | When an SNMP trap is received | `onTrapReceived` |
+| **OID changed** | `BroadcastOidChanged()` | When a specific OID value changes (with previous value) | `onOidChanged` |
 
 #### How Angular Processes Each Broadcast
 
@@ -1681,3 +1686,435 @@ Services (providedIn: 'root' — auto-injected):
 | SignalR not connecting | Verify server URL, check CORS settings, ensure hub name matches |
 | Values not updating | Ensure `onTrafficReceived` broadcasts include the OID with `.0` suffix for scalars |
 | Dark theme conflicts | Scope styles using a parent class: `.mib-panel-theme { ... }` |
+
+---
+
+## 9. OID Watch Service — Subscribe to Specific MIB Changes
+
+The `OidWatchService` lets you register callbacks for specific OIDs. When a value changes (via SET from Angular, SNMP query, injection, scenario, or automation), your callback fires on the WPF UI thread.
+
+### 9.1 Service Class
+
+**File:** `Services/OidWatchService.cs`
+
+```csharp
+using System.Collections.Concurrent;
+
+public class OidWatchService
+{
+    // Callbacks receive (oid, newValue, previousValue)
+    public void Watch(string oid, Action<string, string, string> callback);
+    public void WatchPrefix(string oidPrefix, Action<string, string, string> callback);
+
+    public void Unwatch(string oid);
+    public void UnwatchPrefix(string oidPrefix);
+    public void Clear();
+
+    // Returns previousValue; only fires callbacks when value actually changed
+    public string NotifyChange(string oid, string newValue);
+}
+```
+
+### 9.2 Wiring in App.xaml.cs
+
+```csharp
+// Create the service
+var oidWatch = new OidWatchService();
+
+// Make available via SnmpHub for access from other components
+SnmpHub.OidWatch = oidWatch;
+
+// Feed traffic into the watch service + broadcast onOidChanged to Angular
+simulatorVm.TrafficReceived += (deviceName, op, oid, val, sourceIp) =>
+{
+    if (op == "SET" || op == "GET")
+    {
+        var previousValue = oidWatch.NotifyChange(oid, val);
+
+        // Broadcast to Angular clients for client-side automation
+        if (previousValue != val)
+        {
+            var deviceId = simulatorVm.ActiveSimulators
+                .FirstOrDefault(s => s.DeviceName == deviceName)?.DeviceId ?? "";
+            SnmpHub.BroadcastOidChanged(deviceId, deviceName, oid, val, previousValue, sourceIp);
+        }
+    }
+};
+```
+
+### 9.3 Usage Examples
+
+**Exact OID — Single Field:**
+
+```csharp
+// Alert when hostname changes
+oidWatch.Watch("1.3.6.1.2.1.1.5.0", (oid, newValue, previousValue) =>
+{
+    StatusText = $"Hostname changed: '{previousValue}' → '{newValue}'";
+});
+```
+
+**Prefix Watch — Entire Subtree:**
+
+```csharp
+// React to ANY interface status change (ifOperStatus.*)
+oidWatch.WatchPrefix("1.3.6.1.2.1.2.2.1.8", (oid, newValue, previousValue) =>
+{
+    var ifIndex = oid.Split('.').Last();
+    var status = newValue == "1" ? "UP" : "DOWN";
+    Log($"Interface {ifIndex} went {status} (was {previousValue})");
+
+    // Example: change LED color in WPF dashboard
+    UpdateInterfaceLed(ifIndex, status);
+});
+```
+
+**Temperature Threshold:**
+
+```csharp
+// Monitor temperature and show warning
+oidWatch.Watch("1.3.6.1.2.1.99.1.1.1.4.1", (oid, newValue, previousValue) =>
+{
+    if (int.TryParse(newValue, out var temp) && temp > 75)
+    {
+        MessageBox.Show($"Temperature alert: {temp}°C! (was {previousValue}°C)", "Warning",
+            MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+});
+```
+
+**Cleanup:**
+
+```csharp
+oidWatch.Unwatch("1.3.6.1.2.1.1.5.0");           // remove exact watch
+oidWatch.UnwatchPrefix("1.3.6.1.2.1.2.2.1.8");    // remove prefix watch
+oidWatch.Clear();                                    // remove all watches
+```
+
+### 9.4 Features
+
+| Feature | Details |
+| ------- | ------- |
+| Thread safety | Callbacks dispatched on WPF UI thread automatically |
+| Collapsed scalars | Watching `1.3.6.1.2.1.1.5` also catches traffic for `1.3.6.1.2.1.1.5.0` |
+| Multiple callbacks | Multiple watches on the same OID — all fire |
+| Error isolation | One failing callback won't affect others |
+| Global access | Available via `SnmpHub.OidWatch` from anywhere |
+
+---
+
+## 10. MIB Browser Live Updates
+
+The MIB Browser tree now updates in real-time when values change externally (SET from Angular, injection, scenario, automation).
+
+### 10.1 How It Works
+
+```
+Angular SET → SnmpHub.SendSet() → SNMP SET to Simulator
+    → Simulator.RequestReceived → SimulatorVm.TrafficReceived
+        → App.xaml.cs handler:
+            1. SnmpHub.BroadcastTraffic()     ← Angular gets update
+            2. mibBrowserVm.UpdateNodeValue()  ← MIB Browser tree updates
+            3. oidWatch.NotifyChange()         ← OID watches fire
+```
+
+### 10.2 Key Implementation Details
+
+**Node Lookup Map:**
+The `MibBrowserViewModel` maintains a `_nodeMap` (`Dictionary<string, OidTreeNode>`) that maps OIDs to their visible tree nodes. This map is rebuilt after all tree transformations (chain collapse, table labeling, scalar collapse) to ensure it only contains nodes that are actually displayed.
+
+**Collapsed Scalar Handling:**
+Scalar OIDs like `sysName.0` (`1.3.6.1.2.1.1.5.0`) are collapsed in the tree — the `.0` child is removed and the value is promoted to the parent node (`1.3.6.1.2.1.1.5`). The `UpdateNodeValue` method handles this:
+
+```csharp
+public void UpdateNodeValue(string deviceName, string oid, string value)
+{
+    // Only update if this is the currently displayed device
+    if (!deviceName.Equals(LoadedDeviceName, StringComparison.OrdinalIgnoreCase))
+        return;
+
+    // Try exact OID match
+    if (_nodeMap.TryGetValue(oid, out var node) && node.IsLeaf)
+    {
+        node.Value = value;  // ObservableProperty — UI updates automatically
+        return;
+    }
+
+    // Collapsed scalar: "x.y.z.0" → tree node "x.y.z"
+    if (oid.EndsWith(".0"))
+    {
+        var parentOid = oid[..^2];
+        if (_nodeMap.TryGetValue(parentOid, out node) && node.IsLeaf)
+            node.Value = value;
+    }
+}
+```
+
+---
+
+## 11. Full Automation (E2E Testing)
+
+A single-click button that exercises the entire WPF → SignalR → Angular pipeline.
+
+### 11.1 What It Does
+
+The "Full Automation" button (`MainViewModel.RunFullAutomationCommand`) runs 5 phases:
+
+| Phase | Action | Broadcasts Triggered |
+| ----- | ------ | -------------------- |
+| 1/5 | Load demo data (4 devices) | — |
+| 2/5 | Start all simulators (ports 10161+) | `onDeviceStatusChanged` x4 |
+| 3/5 | Inject recorded sessions | `onTrafficReceived` (INJ frames) |
+| 4/5 | Run E2E scenario (18 seconds) | `onTrafficReceived` (SET) x7 |
+| 5/5 | Send traps + batch MIB update | `onTrapReceived` + `onMibUpdated` |
+
+### 11.2 Built-in E2E Scenario (Phase 4)
+
+The scenario runs 7 timed events with 3-second intervals:
+
+```
+T+ 0s  Interface goes DOWN          (ifOperStatus.1 = 2)
+T+ 3s  CPU spike to 95%             (hrProcessorLoad.1 = 95)
+T+ 6s  Temperature alert 78°C       (entPhySensorValue.1 = 78)
+T+ 9s  SET hostname (write test)    (sysName.0 = "E2E-Automation-Test")
+T+12s  Interface comes UP           (ifOperStatus.1 = 1)
+T+15s  CPU returns to 12%           (hrProcessorLoad.1 = 12)
+T+18s  Temperature normal 42°C      (entPhySensorValue.1 = 42)
+```
+
+Each event:
+
+1. Updates the simulator's internal value (`TrySetValue`)
+2. Broadcasts to Angular (`BroadcastTraffic`)
+3. Updates the MIB Browser tree (`UpdateNodeValue` via TrafficReceived)
+4. Fires OID watches (`NotifyChange`)
+
+### 11.3 UI Button
+
+```xml
+<!-- MainWindow.xaml — shows "Full Automation" or "Stop" based on state -->
+<Button Command="{Binding RunFullAutomationCommand}"
+        Visibility="{Binding IsAutomationRunning,
+            Converter={StaticResource BoolToVisConverter},
+            ConverterParameter=Invert}">
+    ⚡ Full Automation
+</Button>
+<Button Content="■ Stop Automation"
+        Command="{Binding StopAutomationCommand}"
+        Visibility="{Binding IsAutomationRunning,
+            Converter={StaticResource BoolToVisConverter}}"/>
+```
+
+### 11.4 Adding Custom Automation Steps
+
+Extend `RunE2EScenario` in `MainViewModel.cs`:
+
+```csharp
+var events = new[]
+{
+    (delay: 0,  label: "Interface DOWN",  oid: "1.3.6.1.2.1.2.2.1.8.1", value: "2",  type: "Integer32"),
+    (delay: 5,  label: "CPU spike",       oid: "1.3.6.1.2.1.25.3.3.1.2.1", value: "95", type: "Integer32"),
+    // Add your custom events here:
+    (delay: 10, label: "My custom test",  oid: "1.3.6.1.4.1.99999.3.1.0", value: "new-hostname", type: "OctetString"),
+};
+```
+
+Or use the Scenarios tab to build and save reusable `.scenario.json` files with the visual timeline editor.
+
+---
+
+## 12. Angular: onOidChanged Event
+
+The `onOidChanged` SignalR event broadcasts targeted OID value changes from WPF to Angular clients, including the previous value and change source. This enables client-side automation logic that reacts to specific MIB field changes in real-time.
+
+### 12.1 Event Payload
+
+```typescript
+interface OidChangedEvent {
+  deviceId: string;      // Device profile ID
+  deviceName: string;    // Human-readable device name
+  oid: string;           // The OID that changed (e.g. "1.3.6.1.2.1.1.5.0")
+  newValue: string;      // Current value after the change
+  previousValue: string; // Value before the change
+  source: string;        // IP address of the SNMP client that triggered the change
+  timestamp: string;     // ISO 8601 UTC timestamp
+}
+```
+
+### 12.2 Subscribe in SignalR Service
+
+Add the `onOidChanged` listener to your Angular SignalR service:
+
+```typescript
+import { Injectable, signal } from '@angular/core';
+
+@Injectable({ providedIn: 'root' })
+export class SignalRService {
+  // Existing signals...
+  latestTraffic = signal<any>(null);
+  latestTrap = signal<any>(null);
+
+  // New: OID change signal for client-side automation
+  latestOidChanged = signal<OidChangedEvent | null>(null);
+
+  private setupListeners(): void {
+    // Existing listeners...
+    this.connection.on('onTrafficReceived', (data: any) => {
+      this.latestTraffic.set(data);
+    });
+
+    // Add onOidChanged listener
+    this.connection.on('onOidChanged', (data: OidChangedEvent) => {
+      console.log(`[OID Changed] ${data.oid}: '${data.previousValue}' → '${data.newValue}'`);
+      this.latestOidChanged.set(data);
+    });
+  }
+}
+```
+
+### 12.3 React to Changes in a Component
+
+Use Angular's `effect()` to trigger automation logic when specific OIDs change:
+
+```typescript
+import { Component, effect, inject } from '@angular/core';
+import { SignalRService } from '../services/signalr.service';
+
+@Component({
+  selector: 'app-automation',
+  standalone: true,
+  template: `<div>Automation active</div>`
+})
+export class AutomationComponent {
+  private signalR = inject(SignalRService);
+
+  constructor() {
+    effect(() => {
+      const change = this.signalR.latestOidChanged();
+      if (!change) return;
+
+      // Example 1: React to interface going down
+      if (change.oid.startsWith('1.3.6.1.2.1.2.2.1.8') && change.newValue === '2') {
+        console.warn(`Interface DOWN on ${change.deviceName}: ${change.oid}`);
+        this.handleInterfaceDown(change);
+      }
+
+      // Example 2: React to hostname change
+      if (change.oid === '1.3.6.1.2.1.1.5.0') {
+        console.log(`Hostname changed: '${change.previousValue}' → '${change.newValue}'`);
+      }
+
+      // Example 3: Temperature threshold alert
+      if (change.oid === '1.3.6.1.2.1.99.1.1.1.4.1') {
+        const temp = parseInt(change.newValue, 10);
+        if (temp > 75) {
+          this.showTemperatureAlert(change.deviceName, temp);
+        }
+      }
+    });
+  }
+
+  private handleInterfaceDown(change: OidChangedEvent) {
+    // Your automation logic here — e.g. trigger a notification,
+    // update a dashboard, send an API call, etc.
+  }
+
+  private showTemperatureAlert(device: string, temp: number) {
+    // Show toast, update dashboard, trigger alarm, etc.
+  }
+}
+```
+
+### 12.4 Advanced: OID Watch Map Pattern
+
+For complex automation with many OID rules, use a map-based dispatcher:
+
+```typescript
+type OidHandler = (change: OidChangedEvent) => void;
+
+@Component({ /* ... */ })
+export class AutomationEngineComponent {
+  private signalR = inject(SignalRService);
+
+  // Exact OID → handler
+  private exactWatches = new Map<string, OidHandler[]>();
+
+  // Prefix → handler (subtree watches)
+  private prefixWatches = new Map<string, OidHandler[]>();
+
+  constructor() {
+    // Register watches
+    this.watchExact('1.3.6.1.2.1.1.5.0', (c) =>
+      console.log(`sysName: ${c.previousValue} → ${c.newValue}`));
+
+    this.watchPrefix('1.3.6.1.2.1.2.2.1.8', (c) =>
+      console.log(`ifOperStatus ${c.oid}: ${c.newValue === '1' ? 'UP' : 'DOWN'}`));
+
+    // Dispatch loop
+    effect(() => {
+      const change = this.signalR.latestOidChanged();
+      if (!change) return;
+      this.dispatch(change);
+    });
+  }
+
+  watchExact(oid: string, handler: OidHandler) {
+    const list = this.exactWatches.get(oid) ?? [];
+    list.push(handler);
+    this.exactWatches.set(oid, list);
+  }
+
+  watchPrefix(prefix: string, handler: OidHandler) {
+    const list = this.prefixWatches.get(prefix) ?? [];
+    list.push(handler);
+    this.prefixWatches.set(prefix, list);
+  }
+
+  private dispatch(change: OidChangedEvent) {
+    // Exact matches
+    const exact = this.exactWatches.get(change.oid);
+    if (exact) exact.forEach(h => h(change));
+
+    // Prefix matches
+    for (const [prefix, handlers] of this.prefixWatches) {
+      if (change.oid.startsWith(prefix)) {
+        handlers.forEach(h => h(change));
+      }
+    }
+  }
+}
+```
+
+### 12.5 Data Flow
+
+```text
+WPF Simulator receives SNMP SET/GET
+    │
+    ▼  SimulatorVm.TrafficReceived event
+    │
+    ├─▶ oidWatch.NotifyChange(oid, val)     ← WPF-side watches fire
+    │       returns previousValue
+    │
+    ├─▶ if (previousValue != val):
+    │       SnmpHub.BroadcastOidChanged()   ← SignalR broadcast
+    │           │
+    │           ▼  WebSocket
+    │           │
+    │           ▼  Angular SignalRService.latestOidChanged signal
+    │           │
+    │           ▼  effect() in your component dispatches to handlers
+    │
+    ├─▶ SnmpHub.BroadcastTraffic()          ← Existing traffic event
+    │
+    └─▶ mibBrowserVm.UpdateNodeValue()      ← MIB Browser live update
+```
+
+### 12.6 Key Differences: onOidChanged vs onTrafficReceived
+
+| | `onTrafficReceived` | `onOidChanged` |
+| --- | --- | --- |
+| **Fires on** | Every GET/SET operation | Only when value actually changes |
+| **Includes previous value** | No | Yes (`previousValue` field) |
+| **Purpose** | Traffic log, field updates | Automation triggers, change detection |
+| **Duplicate filtering** | None (fires even if value unchanged) | Built-in (skips if `newValue == previousValue`) |
+| **Use case** | Update panel UI fields | Trigger logic when something changes |

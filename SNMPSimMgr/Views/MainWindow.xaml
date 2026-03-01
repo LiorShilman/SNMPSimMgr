@@ -52,6 +52,27 @@
 
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,4"/>
 
+                    <!-- Full Automation E2E -->
+                    <Button Command="{Binding RunFullAutomationCommand}"
+                            Style="{StaticResource AccentButton}"
+                            ToolTip="Full end-to-end test: load data → start simulators → inject sessions → run scenario → send traps → batch update">
+                        <Button.Content>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚡" Margin="0,0,4,0"/>
+                                <TextBlock Text="Full Automation"/>
+                            </StackPanel>
+                        </Button.Content>
+                        <Button.Visibility>
+                            <Binding Path="IsAutomationRunning" Converter="{StaticResource BoolToVisConverter}"
+                                     ConverterParameter="Invert"/>
+                        </Button.Visibility>
+                    </Button>
+                    <Button Content="■ Stop Automation" Command="{Binding StopAutomationCommand}"
+                            Style="{StaticResource DangerButton}"
+                            Visibility="{Binding IsAutomationRunning, Converter={StaticResource BoolToVisConverter}}"/>
+
+                    <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,4"/>
+
                     <Button Content="&#x2753; מדריך" Command="{Binding ShowUserGuideCommand}"
                             ToolTip="מדריך למשתמש" FontSize="12"/>
                 </StackPanel>

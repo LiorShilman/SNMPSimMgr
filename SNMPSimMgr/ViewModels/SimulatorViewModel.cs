@@ -20,6 +20,17 @@ public partial class SimulatorViewModel : ObservableObject
     public event Action<string, string, string, string, string>? TrafficReceived; // deviceName, op, oid, val, sourceIp
     public event Action<string, string, string>? IddSetRequested; // deviceId, fieldId, value
 
+    /// <summary>Set a value on a running simulator by device ID. Returns true if successful.</summary>
+    public bool TrySetValue(string deviceId, string oid, string value)
+    {
+        if (_simulators.TryGetValue(deviceId, out var sim))
+        {
+            sim.SetValue(oid, value);
+            return true;
+        }
+        return false;
+    }
+
     /// <summary>Called from SnmpHub to dispatch IDD SET to WPF handlers.</summary>
     public void RaiseIddSet(string deviceId, string fieldId, string value)
     {
