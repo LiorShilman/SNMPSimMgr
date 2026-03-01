@@ -1,6 +1,6 @@
 import { Injectable, signal, inject, effect, untracked } from '@angular/core';
 import { MibPanelSchema, SetFeedback } from '../models/mib-schema';
-import { SignalRService } from './signalr.service';
+import { SignalRService, OidChangedEvent } from './signalr.service';
 
 @Injectable({ providedIn: 'root' })
 export class MibPanelService {
@@ -12,6 +12,9 @@ export class MibPanelService {
   currentDeviceId = signal<string | null>(null);
 
   private feedbackId = 0;
+
+  // OID change event — exposed for components to react to specific OID changes
+  latestOidChanged = signal<OidChangedEvent | null>(null);
 
   constructor() {
     // Auto-update panel values when traffic events arrive with values
@@ -64,6 +67,15 @@ export class MibPanelService {
           this.emitSchema(current);
         }
       });
+    });
+
+    // Forward OID change events — fires only when a value actually changes (not on every GET)
+    effect(() => {
+      const change = this.signalR.latestOidChanged();
+      if (!change) return;
+
+      console.log(`[MibPanel] OID changed: ${change.oid} '${change.previousValue}' → '${change.newValue}' (device: ${change.deviceName})`);
+      this.latestOidChanged.set(change);
     });
   }
 

@@ -32,6 +32,16 @@ export interface MibUpdateEvent {
   timestamp: string;
 }
 
+export interface OidChangedEvent {
+  deviceId: string;
+  deviceName: string;
+  oid: string;
+  newValue: string;
+  previousValue: string;
+  source: string;
+  timestamp: string;
+}
+
 export interface DeviceInfo {
   id: string;
   name: string;
@@ -119,6 +129,7 @@ export class SignalRService {
   latestTrap = signal<TrapEvent | null>(null, { equal: () => false });
   latestDeviceStatus = signal<DeviceStatusEvent | null>(null, { equal: () => false });
   latestMibUpdate = signal<MibUpdateEvent | null>(null, { equal: () => false });
+  latestOidChanged = signal<OidChangedEvent | null>(null, { equal: () => false });
 
   private serverUrl = 'http://localhost:5050';
 
@@ -162,6 +173,10 @@ export class SignalRService {
 
       this.hubProxy.on('onMibUpdated', (data: MibUpdateEvent) => {
         this.zone.run(() => this.latestMibUpdate.set(data));
+      });
+
+      this.hubProxy.on('onOidChanged', (data: OidChangedEvent) => {
+        this.zone.run(() => this.latestOidChanged.set(data));
       });
 
       // Start connection
