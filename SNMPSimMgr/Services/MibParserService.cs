@@ -31,6 +31,19 @@ public static class MibParserService
         ["enterprises"] = "1.3.6.1.4.1",
         ["snmpV2"] = "1.3.6.1.6",
         ["snmpModules"] = "1.3.6.1.6.3",
+        // Special: zeroDotZero ::= { 0 0 }
+        ["0"] = "0",
+    };
+
+    // MIB keywords that should never be treated as definition names
+    private static readonly HashSet<string> ReservedKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "IMPORTS", "EXPORTS", "BEGIN", "END", "DEFINITIONS", "MACRO",
+        "MODULE-IDENTITY", "OBJECT-TYPE", "OBJECT-IDENTITY", "NOTIFICATION-TYPE",
+        "MODULE-COMPLIANCE", "OBJECT-GROUP", "NOTIFICATION-GROUP",
+        "AGENT-CAPABILITIES", "TEXTUAL-CONVENTION",
+        "SEQUENCE", "CHOICE", "INTEGER", "OCTET", "OBJECT",
+        "TYPE", "VALUE", "NOTATION", "STATUS", "SYNTAX",
     };
 
     // Regex: captures name and ::= { parent index } assignment
@@ -39,13 +52,15 @@ public static class MibParserService
         @"^\s*(\w[\w-]*)\s+(?:OBJECT-TYPE|OBJECT\s+IDENTIFIER|OBJECT-IDENTITY|MODULE-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP|AGENT-CAPABILITIES|TEXTUAL-CONVENTION)",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
+    // OID assignment: captures parent + one or more numeric sub-IDs
+    // Examples: ::= { enterprises 48246 1 }  or  ::= { mmiODU 1 }
     private static readonly Regex OidAssignRegex = new(
-        @"::=\s*\{\s*(\w[\w-]*)\s+(\d+)\s*\}",
+        @"::=\s*\{\s*(\w[\w-]*(?:\(\d+\))?)\s+([\d\s]+)\}",
         RegexOptions.Compiled);
 
-    // Simpler form: name OBJECT IDENTIFIER ::= { parent index }
+    // Simpler form: name OBJECT IDENTIFIER ::= { parent index... }
     private static readonly Regex SimpleOidRegex = new(
-        @"^\s*(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{\s*(\w[\w-]*)\s+(\d+)\s*\}",
+        @"^\s*(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{\s*(\w[\w-]*(?:\(\d+\))?)\s+([\d\s]+)\}",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
     // DESCRIPTION extraction
@@ -191,9 +206,14 @@ public static class MibParserService
             var info = new MibFileInfo { FileName = fileName, ModuleName = moduleName };
             var definitions = new Dictionary<string, MibDefinition>();
 
+            // Strip IMPORTS/MACRO blocks for metadata extraction — prevents MACRO grammar
+            // from leaking into definition regions (e.g. snmpModules getting "Text RevisionPart").
+            var cleanContent = StripImportsAndMacros(content);
+
             foreach (var kvp in rawAssignments)
             {
                 var name = kvp.Key;
+                if (name.StartsWith("_synth_")) continue; // Skip synthetic intermediate nodes
                 var parent = kvp.Value.parent;
                 var index = kvp.Value.index;
                 if (!resolved.TryGetValue(name, out var oid)) continue;
@@ -206,8 +226,8 @@ public static class MibParserService
                     Index = index
                 };
 
-                // Extract all metadata
-                var defRegion = ExtractDefinitionRegion(content, name);
+                // Extract all metadata from MACRO-stripped content
+                var defRegion = ExtractDefinitionRegion(cleanContent, name);
                 if (defRegion != null)
                     ExtractMetadata(def, defRegion, moduleName);
 
@@ -233,8 +253,12 @@ public static class MibParserService
         // Strip single-line comments
         content = StripComments(content);
 
-        // Phase 1: Collect raw assignments
+        // Phase 1: Collect raw assignments (internally also strips IMPORTS/MACROs)
         var rawAssignments = CollectRawAssignments(content);
+
+        // Strip IMPORTS/MACRO blocks for metadata extraction — prevents MACRO grammar
+        // (e.g. "DESCRIPTION" Text, RevisionPart) from leaking into definition regions.
+        var cleanContent = StripImportsAndMacros(content);
 
         // Phase 2: Resolve all names to full numeric OIDs
         var resolved = new Dictionary<string, string>(RootOids);
@@ -259,6 +283,7 @@ public static class MibParserService
         foreach (var kvp2 in rawAssignments)
         {
             var name = kvp2.Key;
+            if (name.StartsWith("_synth_")) continue; // Skip synthetic intermediate nodes
             var parent = kvp2.Value.parent;
             var index = kvp2.Value.index;
             if (!resolved.TryGetValue(name, out var oid)) continue;
@@ -271,7 +296,7 @@ public static class MibParserService
                 Index = index
             };
 
-            var defRegion = ExtractDefinitionRegion(content, name);
+            var defRegion = ExtractDefinitionRegion(cleanContent, name);
             if (defRegion != null)
                 ExtractMetadata(def, defRegion, result.ModuleName);
 
@@ -283,35 +308,150 @@ public static class MibParserService
         return result;
     }
 
+    /// <summary>
+    /// Parse a parent token that may include an inline numeric label, e.g. "enterprises" or "mminc(48246)".
+    /// Returns the clean name (without the label).
+    /// </summary>
+    private static string CleanParentName(string raw)
+    {
+        var paren = raw.IndexOf('(');
+        return paren >= 0 ? raw.Substring(0, paren) : raw;
+    }
+
+    /// <summary>
+    /// Parse the indices portion of an OID assignment. Handles:
+    ///   "1"           → single index
+    ///   "48246 1"     → multi-part chain (parent.48246 is intermediate, final index is 1)
+    /// For multi-part like { enterprises 48246 1 }, stores the name under
+    /// parent="enterprises", with the full sub-ID chain collapsed.
+    /// </summary>
+    private static (string parent, int index) ParseOidAssignment(string parentRaw, string indicesPart)
+    {
+        var parent = CleanParentName(parentRaw.Trim());
+        var parts = indicesPart.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 1)
+            return (parent, int.Parse(parts[0]));
+
+        // Multi-part: e.g. "48246 1" from { enterprises 48246 1 }
+        // This means the full OID is enterprises.48246.1
+        // We store it as parent="enterprises", index=-1 (special marker)
+        // and handle it in resolution by storing the full sub-chain
+        // Actually, simpler: just return parent + all-but-last as dotted suffix, last as index
+        // But our data model is (parent, index). So let's store a synthetic parent name.
+        // E.g. { enterprises 48246 1 } → parent = "enterprises", and we resolve the full path.
+        // We'll handle this by pre-resolving the chain inline.
+        return (parent, int.Parse(parts[0]));
+    }
+
+    /// <summary>
+    /// Strip IMPORTS sections and MACRO definition blocks from MIB content.
+    /// These contain keywords (MODULE-IDENTITY, OBJECT-TYPE, etc.) that confuse
+    /// the definition regex when they appear as imported names or macro grammar.
+    /// </summary>
+    private static string StripImportsAndMacros(string content)
+    {
+        // Strip IMPORTS ... ; sections
+        content = Regex.Replace(content, @"\bIMPORTS\b.*?;", "", RegexOptions.Singleline);
+
+        // Strip MACRO ::= BEGIN ... END blocks
+        content = Regex.Replace(content, @"\bMACRO\s*::=\s*\n?\s*BEGIN\b.*?\bEND\b", "", RegexOptions.Singleline);
+
+        return content;
+    }
+
     private static Dictionary<string, (string parent, int index)> CollectRawAssignments(string content)
     {
+        // Strip IMPORTS and MACRO blocks to avoid false matches
+        content = StripImportsAndMacros(content);
+
         var rawAssignments = new Dictionary<string, (string parent, int index)>();
+        // Track multi-part OID chains: name → (parent, full sub-ID list)
+        var multiPartChains = new Dictionary<string, (string parent, int[] indices)>();
 
         // Simple OBJECT IDENTIFIER assignments (single line)
         foreach (Match m in SimpleOidRegex.Matches(content))
         {
             var name = m.Groups[1].Value;
-            var parent = m.Groups[2].Value;
-            var index = int.Parse(m.Groups[3].Value);
-            rawAssignments[name] = (parent, index);
+            if (ReservedKeywords.Contains(name)) continue;
+
+            var parent = CleanParentName(m.Groups[2].Value.Trim());
+            var parts = m.Groups[3].Value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length == 1)
+            {
+                rawAssignments[name] = (parent, int.Parse(parts[0]));
+            }
+            else
+            {
+                var indices = parts.Select(int.Parse).ToArray();
+                multiPartChains[name] = (parent, indices);
+                rawAssignments[name] = (parent, indices[0]);
+            }
         }
 
         // Complex multi-line definitions (OBJECT-TYPE, MODULE-IDENTITY, etc.)
         var typeMatches = AssignmentRegex.Matches(content);
-        foreach (Match typeMatch in typeMatches)
+        var matchList = typeMatches.Cast<Match>().ToList();
+        for (int mi = 0; mi < matchList.Count; mi++)
         {
+            var typeMatch = matchList[mi];
             var name = typeMatch.Groups[1].Value;
+            if (ReservedKeywords.Contains(name)) continue;
             if (rawAssignments.ContainsKey(name)) continue;
 
+            // Limit search to the region between this definition and the next one.
+            // Prevents crossing definition boundaries (e.g. objectID-value finding
+            // zeroDotZero's ::= { 0 0 } instead of its own).
             var searchStart = typeMatch.Index + typeMatch.Length;
-            var searchRegion = content.Substring(searchStart, Math.Min(3000, content.Length - searchStart));
+            var nextDefStart = (mi + 1 < matchList.Count)
+                ? matchList[mi + 1].Index
+                : content.Length;
+            var regionLength = Math.Min(nextDefStart - searchStart, 3000);
+            if (regionLength <= 0) continue;
+
+            var searchRegion = content.Substring(searchStart, regionLength);
             var oidMatch = OidAssignRegex.Match(searchRegion);
             if (oidMatch.Success)
             {
-                var parent = oidMatch.Groups[1].Value;
-                var index = int.Parse(oidMatch.Groups[2].Value);
-                rawAssignments[name] = (parent, index);
+                var parent = CleanParentName(oidMatch.Groups[1].Value.Trim());
+                var parts = oidMatch.Groups[2].Value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length == 1)
+                {
+                    rawAssignments[name] = (parent, int.Parse(parts[0]));
+                }
+                else
+                {
+                    var indices = parts.Select(int.Parse).ToArray();
+                    multiPartChains[name] = (parent, indices);
+                    rawAssignments[name] = (parent, indices[0]);
+                }
             }
+        }
+
+        // Expand multi-part chains: { enterprises 48246 1 } →
+        //   _synth_enterprises_48246 = (enterprises, 48246)
+        //   mmiODU = (_synth_enterprises_48246, 1)
+        foreach (var kvp in multiPartChains)
+        {
+            var name = kvp.Key;
+            var parent = kvp.Value.parent;
+            var indices = kvp.Value.indices;
+
+            if (indices.Length < 2) continue;
+
+            // Build chain of synthetic intermediate parents
+            var currentParent = parent;
+            for (int i = 0; i < indices.Length - 1; i++)
+            {
+                var synthName = $"_synth_{currentParent}_{indices[i]}";
+                if (!rawAssignments.ContainsKey(synthName))
+                    rawAssignments[synthName] = (currentParent, indices[i]);
+                currentParent = synthName;
+            }
+            // Final assignment uses the last index with the last synthetic parent
+            rawAssignments[name] = (currentParent, indices[indices.Length - 1]);
         }
 
         return rawAssignments;

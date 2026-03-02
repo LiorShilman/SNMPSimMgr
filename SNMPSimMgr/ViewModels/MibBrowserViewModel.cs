@@ -273,7 +273,12 @@ public partial class MibBrowserViewModel : ObservableObject
     /// </summary>
     private List<SnmpRecord> GenerateMibRecords()
     {
+        // Only include actual data objects (those with MAX-ACCESS, i.e. OBJECT-TYPE definitions).
+        // Bare OBJECT IDENTIFIER assignments (structural parents like org, dod, enterprises)
+        // and special entries like zeroDotZero are excluded — they still appear as branch
+        // nodes in the tree because BuildTree creates intermediate nodes from OID path segments.
         return _mibStore.LoadedOids.Values
+            .Where(d => !string.IsNullOrEmpty(d.Access))
             .OrderBy(d => d.Oid, StringComparer.Ordinal)
             .Select(d => new SnmpRecord
             {
@@ -306,6 +311,15 @@ public partial class MibBrowserViewModel : ObservableObject
 
         foreach (var record in _allRecords)
         {
+            // Resolve MIB name for flat view display
+            if (string.IsNullOrEmpty(record.Name))
+            {
+                if (_mibStore.LoadedOids.TryGetValue(record.Oid, out var mibDef))
+                    record.Name = mibDef.Name;
+                else if (KnownOids.TryGetValue(record.Oid, out var known))
+                    record.Name = known;
+            }
+
             if (string.IsNullOrEmpty(filter) ||
                 record.Oid.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
                 record.Value.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||

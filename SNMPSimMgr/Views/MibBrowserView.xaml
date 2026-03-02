@@ -287,9 +287,10 @@
                         </Style>
                     </DataGrid.Style>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="3*"/>
-                        <DataGridTextColumn Header="TYPE" Binding="{Binding ValueType}" Width="120"/>
-                        <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="4*"/>
+                        <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="2*"/>
+                        <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="TYPE" Binding="{Binding ValueType}" Width="100"/>
+                        <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="3*"/>
                     </DataGrid.Columns>
                 </DataGrid>
 
