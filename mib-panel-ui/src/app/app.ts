@@ -1,7 +1,8 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { MibPanelService } from './services/mib-panel.service';
 import { FieldClassifierService } from './services/field-classifier.service';
 import { SignalRService } from './services/signalr.service';
+import html2canvas from 'html2canvas';
 import { SidePanelComponent } from './components/side-panel/side-panel.component';
 import { ModuleSectionComponent } from './components/module-section/module-section.component';
 import { SetFeedbackComponent } from './components/set-feedback/set-feedback.component';
@@ -89,6 +90,7 @@ export class App {
   isTrapGenOpen = false;
   isBulkSetOpen = false;
   isDragging = false;
+  isCapturing = signal(false);
 
   constructor() {
     // Auto-connect to WPF SignalR server
@@ -121,6 +123,36 @@ export class App {
     const file = event.dataTransfer?.files?.[0];
     if (file?.name.endsWith('.json')) {
       this.panelService.loadFromFile(file);
+    }
+  }
+
+  async saveImage(): Promise<void> {
+    // Capture the main content or the side panel body (whichever is visible)
+    const target = this.isPanelOpen
+      ? document.querySelector<HTMLElement>('.panel-body')
+      : document.querySelector<HTMLElement>('.main-content');
+    if (!target) return;
+
+    this.isCapturing.set(true);
+    try {
+      const canvas = await html2canvas(target, {
+        backgroundColor: '#141720',
+        scale: 2,
+        useCORS: true,
+      });
+      const blob = await new Promise<Blob | null>(resolve =>
+        canvas.toBlob(resolve, 'image/png'));
+      if (!blob) return;
+
+      const name = this.schema()?.deviceName || 'panel';
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}_${ts}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      this.isCapturing.set(false);
     }
   }
 }

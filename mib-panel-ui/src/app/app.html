@@ -33,6 +33,10 @@
         <button type="button" class="btn-validate" title="Validate MIB files" (click)="isValidatorOpen = true">
           &#9745; Validate
         </button>
+        <button type="button" class="btn-export" title="Save panel as image"
+                (click)="saveImage()" [disabled]="isCapturing()">
+          {{ isCapturing() ? '&#8987; Saving...' : '&#128247; Save Image' }}
+        </button>
         <button type="button" class="btn-open-panel" (click)="isPanelOpen = true">
           Open Panel &#9656;
         </button>
@@ -100,7 +104,13 @@
               <span class="panel-conn-dot" [class]="signalRState()"></span>
               {{ id.name }}
             </div>
-            <div class="panel-device-meta">{{ id.model }} &middot; {{ id.firmware }}</div>
+            @if (id.model || id.firmware) {
+              <div class="panel-device-meta">
+                @if (id.model) { <span>{{ id.model }}</span> }
+                @if (id.model && id.firmware) { <span> &middot; </span> }
+                @if (id.firmware) { <span>{{ id.firmware }}</span> }
+              </div>
+            }
           </div>
           @if (panelStats(); as ps) {
             <div class="panel-quick-stats">{{ ps.fields }} fields &middot; {{ ps.tables }} tables &middot; {{ ps.modules }} mod</div>

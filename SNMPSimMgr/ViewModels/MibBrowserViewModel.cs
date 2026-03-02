@@ -1081,6 +1081,30 @@ public partial class MibBrowserViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task UnloadAllMibs()
+    {
+        var device = _deviceList.SelectedDevice;
+        if (device == null) return;
+
+        var count = device.MibFilePaths.Count;
+        if (count == 0) return;
+
+        device.MibFilePaths.Clear();
+        Hubs.SnmpHub.InvalidateSchemaCache(device.Id);
+
+        await _deviceList.SaveAsync();
+        await _mibStore.LoadForDeviceAsync(device);
+        MibCount = 0;
+        MibStatus = $"Unloaded {count} MIB files";
+
+        _allRecords = new List<SnmpRecord>();
+        TotalOids = 0;
+        RootNodes.Clear();
+        FlatRecords.Clear();
+        ClearPanelState();
+    }
+
+    [RelayCommand]
     private void ExpandAllChildren(OidTreeNode? node)
     {
         if (node == null) return;

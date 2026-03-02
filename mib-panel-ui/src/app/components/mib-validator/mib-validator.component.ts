@@ -587,6 +587,39 @@ export class MibValidatorComponent {
     this.expandedFiles[file.fileName] = !this.expandedFiles[file.fileName];
   }
 
+  /**
+   * Fix dependency statuses: the server may not detect module names from MIB files,
+   * causing cross-file dependencies to appear as "missing" even when the providing
+   * file is loaded. We build a lookup from file names (sans extension) and detected
+   * module names, then re-classify any false "missing" imports as "loaded".
+   */
+  private fixDependencyStatuses(res: MibValidationResult): void {
+    // Map: normalized module name → fileName that provides it
+    const knownModules = new Map<string, string>();
+
+    for (const dep of res.dependencies) {
+      // Detected module name (may equal fileName if detection failed)
+      if (dep.moduleName) {
+        knownModules.set(dep.moduleName.toUpperCase(), dep.fileName);
+      }
+      // File base name without extension as a fallback
+      const baseName = dep.fileName.replace(/\.(mib|txt|my)$/i, '');
+      knownModules.set(baseName.toUpperCase(), dep.fileName);
+    }
+
+    for (const dep of res.dependencies) {
+      for (const imp of dep.imports) {
+        if (imp.status === 'missing') {
+          const provider = knownModules.get(imp.moduleName.toUpperCase());
+          if (provider) {
+            imp.status = 'loaded';
+            imp.providedBy = provider;
+          }
+        }
+      }
+    }
+  }
+
   async validate(): Promise<void> {
     const deviceId = this.panelService.currentDeviceId();
     if (!deviceId) {
@@ -599,6 +632,7 @@ export class MibValidatorComponent {
 
     try {
       const res = await this.signalR.validateMib(deviceId);
+      this.fixDependencyStatuses(res);
       this.result.set(res);
       // Auto-expand files with issues
       this.expandedFiles = {};

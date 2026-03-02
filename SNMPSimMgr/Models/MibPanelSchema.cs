@@ -86,16 +86,16 @@ public class MibFieldSchema
 
     // Constraints — for input validation
     [JsonProperty("minValue")]
-    public int? MinValue { get; set; }
+    public long? MinValue { get; set; }
 
     [JsonProperty("maxValue")]
-    public int? MaxValue { get; set; }
+    public long? MaxValue { get; set; }
 
     [JsonProperty("minLength")]
-    public int? MinLength { get; set; }
+    public long? MinLength { get; set; }
 
     [JsonProperty("maxLength")]
-    public int? MaxLength { get; set; }
+    public long? MaxLength { get; set; }
 
     [JsonProperty("defaultValue")]
     public string? DefaultValue { get; set; }

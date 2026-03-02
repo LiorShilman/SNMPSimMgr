@@ -30,7 +30,19 @@ public static class MibParserService
         ["private"] = "1.3.6.1.4",
         ["enterprises"] = "1.3.6.1.4.1",
         ["snmpV2"] = "1.3.6.1.6",
+        ["snmpDomains"] = "1.3.6.1.6.1",
+        ["snmpProxys"] = "1.3.6.1.6.2",
         ["snmpModules"] = "1.3.6.1.6.3",
+        // SNMP-FRAMEWORK-MIB (RFC 3411)
+        ["snmpFrameworkMIB"] = "1.3.6.1.6.3.10",
+        ["snmpFrameworkAdmin"] = "1.3.6.1.6.3.10.1",
+        ["snmpFrameworkMIBObjects"] = "1.3.6.1.6.3.10.2",
+        ["snmpFrameworkMIBConformance"] = "1.3.6.1.6.3.10.3",
+        ["snmpAuthProtocols"] = "1.3.6.1.6.3.10.1.1",
+        ["snmpPrivProtocols"] = "1.3.6.1.6.3.10.1.2",
+        // IEEE 802 standards (used by LLDP, 802.1Q, etc.)
+        // OID path: iso(1).org(3).ieee(111).standards-association-numbers-series-standards(2).lan-man-stds(802).ieee802dot1(1).1
+        ["ieee802dot1mibs"] = "1.3.111.2.802.1.1",
         // Special: zeroDotZero ::= { 0 0 }
         ["0"] = "0",
     };
@@ -52,15 +64,15 @@ public static class MibParserService
         @"^\s*(\w[\w-]*)\s+(?:OBJECT-TYPE|OBJECT\s+IDENTIFIER|OBJECT-IDENTITY|MODULE-IDENTITY|NOTIFICATION-TYPE|MODULE-COMPLIANCE|OBJECT-GROUP|NOTIFICATION-GROUP|AGENT-CAPABILITIES|TEXTUAL-CONVENTION)",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
-    // OID assignment: captures parent + one or more numeric sub-IDs
-    // Examples: ::= { enterprises 48246 1 }  or  ::= { mmiODU 1 }
+    // OID assignment: captures everything inside ::= { ... } for programmatic parsing
+    // Handles both standard "{ parent 1 }" and IEEE multi-component "{ org ieee(111) stds(2) ... 1 }"
     private static readonly Regex OidAssignRegex = new(
-        @"::=\s*\{\s*(\w[\w-]*(?:\(\d+\))?)\s+([\d\s]+)\}",
+        @"::=\s*\{([^}]+)\}",
         RegexOptions.Compiled);
 
-    // Simpler form: name OBJECT IDENTIFIER ::= { parent index... }
+    // Simpler form: name OBJECT IDENTIFIER ::= { ... }  (single or multi-line)
     private static readonly Regex SimpleOidRegex = new(
-        @"^\s*(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{\s*(\w[\w-]*(?:\(\d+\))?)\s+([\d\s]+)\}",
+        @"^\s*(\w[\w-]*)\s+OBJECT\s+IDENTIFIER\s*::=\s*\{([^}]+)\}",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
     // DESCRIPTION extraction
@@ -130,9 +142,9 @@ public static class MibParserService
         @"FROM\s+([\w][\w-]*)",
         RegexOptions.Compiled);
 
-    // MODULE-IDENTITY or DEFINITIONS ::= BEGIN
+    // MODULE-IDENTITY or DEFINITIONS ::= BEGIN (allow leading whitespace — many vendor MIBs indent)
     private static readonly Regex ModuleNameRegex = new(
-        @"^(\w[\w-]*)\s+(?:DEFINITIONS\s*::=\s*BEGIN|MODULE-IDENTITY)",
+        @"^\s*(\w[\w-]*)\s+(?:DEFINITIONS\s*::=\s*BEGIN|MODULE-IDENTITY)",
         RegexOptions.Multiline | RegexOptions.Compiled);
 
     public static MibFileInfo ParseFile(string filePath)
@@ -319,29 +331,44 @@ public static class MibParserService
     }
 
     /// <summary>
-    /// Parse the indices portion of an OID assignment. Handles:
-    ///   "1"           → single index
-    ///   "48246 1"     → multi-part chain (parent.48246 is intermediate, final index is 1)
-    /// For multi-part like { enterprises 48246 1 }, stores the name under
-    /// parent="enterprises", with the full sub-ID chain collapsed.
+    /// Parse the full content inside an OID assignment's braces.
+    /// Handles standard format: "parent 1" or "parent 48246 1"
+    /// and IEEE multi-component format: "org ieee(111) stds(2) lan(802) ieee802dot1(1) 1"
+    /// Returns (parentName, numericIndices) or null if the content can't be parsed as an OID.
     /// </summary>
-    private static (string parent, int index) ParseOidAssignment(string parentRaw, string indicesPart)
+    private static (string parent, int[] indices)? TryParseOidBraceContent(string braceContent)
     {
-        var parent = CleanParentName(parentRaw.Trim());
-        var parts = indicesPart.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        var tokens = braceContent.Trim().Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2) return null;
 
-        if (parts.Length == 1)
-            return (parent, int.Parse(parts[0]));
+        var parent = CleanParentName(tokens[0]);
+        var indices = new List<int>();
 
-        // Multi-part: e.g. "48246 1" from { enterprises 48246 1 }
-        // This means the full OID is enterprises.48246.1
-        // We store it as parent="enterprises", index=-1 (special marker)
-        // and handle it in resolution by storing the full sub-chain
-        // Actually, simpler: just return parent + all-but-last as dotted suffix, last as index
-        // But our data model is (parent, index). So let's store a synthetic parent name.
-        // E.g. { enterprises 48246 1 } → parent = "enterprises", and we resolve the full path.
-        // We'll handle this by pre-resolving the chain inline.
-        return (parent, int.Parse(parts[0]));
+        for (int i = 1; i < tokens.Length; i++)
+        {
+            var token = tokens[i];
+            var parenIdx = token.IndexOf('(');
+            if (parenIdx >= 0)
+            {
+                // name(num) format — extract the number
+                var numStr = token.Substring(parenIdx + 1).TrimEnd(')');
+                if (int.TryParse(numStr, out var num))
+                    indices.Add(num);
+                else
+                    return null;
+            }
+            else if (int.TryParse(token, out var num))
+            {
+                indices.Add(num);
+            }
+            else
+            {
+                // Plain name without number — can't resolve numerically
+                return null;
+            }
+        }
+
+        return indices.Count > 0 ? (parent, indices.ToArray()) : null;
     }
 
     /// <summary>
@@ -365,26 +392,30 @@ public static class MibParserService
         // Strip IMPORTS and MACRO blocks to avoid false matches
         content = StripImportsAndMacros(content);
 
+        // Strip quoted strings to avoid matching patterns inside DESCRIPTION blocks
+        // (e.g. IF-MIB has "noTest OBJECT IDENTIFIER ::= { 0 0 }" inside a DESCRIPTION)
+        content = Regex.Replace(content, @"""[^""]*""", "\"\"", RegexOptions.Singleline);
+
         var rawAssignments = new Dictionary<string, (string parent, int index)>();
         // Track multi-part OID chains: name → (parent, full sub-ID list)
         var multiPartChains = new Dictionary<string, (string parent, int[] indices)>();
 
-        // Simple OBJECT IDENTIFIER assignments (single line)
+        // Simple OBJECT IDENTIFIER assignments (single or multi-line)
         foreach (Match m in SimpleOidRegex.Matches(content))
         {
             var name = m.Groups[1].Value;
             if (ReservedKeywords.Contains(name)) continue;
 
-            var parent = CleanParentName(m.Groups[2].Value.Trim());
-            var parts = m.Groups[3].Value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            var parsed = TryParseOidBraceContent(m.Groups[2].Value);
+            if (parsed == null) continue;
 
-            if (parts.Length == 1)
+            var (parent, indices) = parsed.Value;
+            if (indices.Length == 1)
             {
-                rawAssignments[name] = (parent, int.Parse(parts[0]));
+                rawAssignments[name] = (parent, indices[0]);
             }
             else
             {
-                var indices = parts.Select(int.Parse).ToArray();
                 multiPartChains[name] = (parent, indices);
                 rawAssignments[name] = (parent, indices[0]);
             }
@@ -403,29 +434,31 @@ public static class MibParserService
             // Limit search to the region between this definition and the next one.
             // Prevents crossing definition boundaries (e.g. objectID-value finding
             // zeroDotZero's ::= { 0 0 } instead of its own).
+            // No hard cap — vendor MIBs can have 40KB+ MODULE-IDENTITY REVISION blocks.
             var searchStart = typeMatch.Index + typeMatch.Length;
             var nextDefStart = (mi + 1 < matchList.Count)
                 ? matchList[mi + 1].Index
                 : content.Length;
-            var regionLength = Math.Min(nextDefStart - searchStart, 3000);
+            var regionLength = nextDefStart - searchStart;
             if (regionLength <= 0) continue;
 
             var searchRegion = content.Substring(searchStart, regionLength);
             var oidMatch = OidAssignRegex.Match(searchRegion);
             if (oidMatch.Success)
             {
-                var parent = CleanParentName(oidMatch.Groups[1].Value.Trim());
-                var parts = oidMatch.Groups[2].Value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (parts.Length == 1)
+                var parsed = TryParseOidBraceContent(oidMatch.Groups[1].Value);
+                if (parsed != null)
                 {
-                    rawAssignments[name] = (parent, int.Parse(parts[0]));
-                }
-                else
-                {
-                    var indices = parts.Select(int.Parse).ToArray();
-                    multiPartChains[name] = (parent, indices);
-                    rawAssignments[name] = (parent, indices[0]);
+                    var (parent, indices) = parsed.Value;
+                    if (indices.Length == 1)
+                    {
+                        rawAssignments[name] = (parent, indices[0]);
+                    }
+                    else
+                    {
+                        multiPartChains[name] = (parent, indices);
+                        rawAssignments[name] = (parent, indices[0]);
+                    }
                 }
             }
         }
@@ -535,8 +568,8 @@ public static class MibParserService
                 var rangeMatch = IntRangeRegex.Match(syntax);
                 if (rangeMatch.Success)
                 {
-                    def.RangeMin = int.Parse(rangeMatch.Groups[1].Value);
-                    def.RangeMax = int.Parse(rangeMatch.Groups[2].Value);
+                    def.RangeMin = long.Parse(rangeMatch.Groups[1].Value);
+                    def.RangeMax = long.Parse(rangeMatch.Groups[2].Value);
                 }
                 return;
             }
@@ -559,8 +592,8 @@ public static class MibParserService
             var rangeMatch = IntRangeRegex.Match(syntax);
             if (rangeMatch.Success)
             {
-                def.RangeMin = int.Parse(rangeMatch.Groups[1].Value);
-                def.RangeMax = int.Parse(rangeMatch.Groups[2].Value);
+                def.RangeMin = long.Parse(rangeMatch.Groups[1].Value);
+                def.RangeMax = long.Parse(rangeMatch.Groups[2].Value);
             }
             return;
         }
@@ -574,8 +607,8 @@ public static class MibParserService
             var sizeMatch = SizeConstraintRegex.Match(syntax);
             if (sizeMatch.Success)
             {
-                def.SizeMin = int.Parse(sizeMatch.Groups[1].Value);
-                def.SizeMax = int.Parse(sizeMatch.Groups[2].Value);
+                def.SizeMin = long.Parse(sizeMatch.Groups[1].Value);
+                def.SizeMax = long.Parse(sizeMatch.Groups[2].Value);
             }
             return;
         }
@@ -613,14 +646,14 @@ public static class MibParserService
             var rangeFallback = IntRangeRegex.Match(syntax);
             if (rangeFallback.Success)
             {
-                def.RangeMin = int.Parse(rangeFallback.Groups[1].Value);
-                def.RangeMax = int.Parse(rangeFallback.Groups[2].Value);
+                def.RangeMin = long.Parse(rangeFallback.Groups[1].Value);
+                def.RangeMax = long.Parse(rangeFallback.Groups[2].Value);
             }
             var sizeFallback = SizeConstraintRegex.Match(syntax);
             if (sizeFallback.Success)
             {
-                def.SizeMin = int.Parse(sizeFallback.Groups[1].Value);
-                def.SizeMax = int.Parse(sizeFallback.Groups[2].Value);
+                def.SizeMin = long.Parse(sizeFallback.Groups[1].Value);
+                def.SizeMax = long.Parse(sizeFallback.Groups[2].Value);
             }
         }
     }
@@ -774,6 +807,7 @@ public static class MibParserService
             // Check for unresolved names (only truly unresolved across ALL files)
             foreach (var kvp in rawAssignments)
             {
+                if (kvp.Key.StartsWith("_synth_")) continue; // Skip synthetic intermediate nodes
                 if (!globalResolved.ContainsKey(kvp.Key))
                 {
                     validation.Issues.Add(new MibValidationIssue
@@ -791,6 +825,7 @@ public static class MibParserService
 
             foreach (var kvp in rawAssignments)
             {
+                if (kvp.Key.StartsWith("_synth_")) continue; // Skip synthetic intermediate nodes
                 if (!globalResolved.TryGetValue(kvp.Key, out var oid)) continue;
                 resolvedCount++;
 

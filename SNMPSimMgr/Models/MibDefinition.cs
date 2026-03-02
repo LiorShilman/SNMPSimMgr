@@ -21,10 +21,10 @@ public class MibDefinition
 
     // Parsed syntax breakdown
     public string? BaseType { get; set; }
-    public int? RangeMin { get; set; }
-    public int? RangeMax { get; set; }
-    public int? SizeMin { get; set; }
-    public int? SizeMax { get; set; }
+    public long? RangeMin { get; set; }
+    public long? RangeMax { get; set; }
+    public long? SizeMin { get; set; }
+    public long? SizeMax { get; set; }
     public Dictionary<string, int>? EnumValues { get; set; }
 }
 

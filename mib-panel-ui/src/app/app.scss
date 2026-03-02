@@ -79,6 +79,28 @@
   }
 }
 
+.btn-export {
+  background: transparent;
+  border: 1px solid #3D4663;
+  color: #CDD1D8;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #232836;
+    border-color: #57D9A3;
+    color: #57D9A3;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+}
+
 .btn-open-panel {
   background: #4C9AFF;
   border: none;
@@ -400,6 +422,7 @@
 // Module Tabs
 .module-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 20px;
   background: rgba(27, 31, 42, 0.92);
@@ -409,9 +432,6 @@
   position: sticky;
   top: 42px;
   z-index: 2;
-  overflow-x: auto;
-
-  &::-webkit-scrollbar { height: 0; }
 }
 
 .module-tab {
