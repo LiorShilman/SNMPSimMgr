@@ -36,6 +36,7 @@ export interface OidChangedEvent {
   deviceId: string;
   deviceName: string;
   oid: string;
+  fieldName: string;   // resolved field name (e.g., "sysName", "temperature") — for IDD, same as oid
   newValue: string;
   previousValue: string;
   source: string;

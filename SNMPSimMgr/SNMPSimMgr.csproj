@@ -11,7 +11,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="SnmpSharpNet" Version="0.9.7" />
-    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
 
     <!-- SignalR 2.0 self-hosting (OWIN / Katana) -->
     <PackageReference Include="Owin" Version="1.0.0" />

@@ -75,13 +75,36 @@ public partial class App : Application
         };
 
         // ── OID Watch examples ──
-        // Exact OID: fires when sysName changes
-        oidWatch.Watch("1.3.6.1.2.1.1.5.0", (oid, newValue, previousValue) =>
+        // You can register watches in 3 ways:
+        //   1. Watch(oid, callback)           — exact OID match
+        //   2. WatchPrefix(prefix, callback)  — subtree match
+        //   3. WatchByName(name, callback)    — by field name (SNMP or IDD)
+        //
+        // For WatchByName to work with SNMP devices, call oidWatch.RegisterSchema(schema)
+        // after exporting/loading a schema. IDD field names work immediately (the OID IS the name).
+
+        // ── Example 1: Watch by Name — SNMP field ──
+        // Fires when sysName changes, regardless of its numeric OID
+        oidWatch.WatchByName("sysName", (oid, newValue, previousValue) =>
         {
             System.Diagnostics.Debug.WriteLine($"[OidWatch] sysName changed: '{previousValue}' → '{newValue}'");
+            Current.Dispatcher.BeginInvoke(() =>
+                simulatorVm.LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] AUTO: sysName changed to '{newValue}'"));
         });
 
-        // Prefix (subtree): fires for ANY ifOperStatus change (.1, .2, .3, ...)
+        // ── Example 2: Watch by Name — IDD field with automation logic ──
+        // When temperature exceeds threshold → auto-set status-led to "critical"
+        oidWatch.WatchByName("temperature", (oid, newValue, previousValue) =>
+        {
+            if (int.TryParse(newValue, out var temp) && temp > 80)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OidWatch] ALERT: temperature={temp} > 80 — setting status-led to critical");
+                Current.Dispatcher.BeginInvoke(() =>
+                    simulatorVm.LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] AUTO: temperature {temp}°C exceeds threshold!"));
+            }
+        });
+
+        // ── Example 3: Watch by OID prefix — interface status subtree ──
         oidWatch.WatchPrefix("1.3.6.1.2.1.2.2.1.8", (oid, newValue, previousValue) =>
         {
             var status = newValue == "1" ? "UP" : "DOWN";
