@@ -99,6 +99,9 @@
             <TabItem Header="MONITOR">
                 <views:NetworkMonitorView DataContext="{Binding Monitor}"/>
             </TabItem>
+            <TabItem Header="IDD EDITOR">
+                <views:IddEditorView DataContext="{Binding IddEditor}"/>
+            </TabItem>
         </TabControl>
 
         <!-- Status Bar -->

@@ -535,6 +535,91 @@
 
                 <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
 
+                <!-- Section: IDD Editor -->
+                <TextBlock Text="לשונית IDD EDITOR — עורך שדות IDD" FontSize="15" FontWeight="Bold"
+                           Foreground="#4C9AFF" Margin="0,0,0,8"/>
+                <StackPanel Margin="16,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>IDD Editor:</Bold> כלי ליצירה ועריכה של הגדרות שדות IDD (מכשירים שאינם SNMP).
+                        מאפשר הוספה, עריכה, מחיקה ושמירה ל-JSON — בדיוק כמו MIB Browser עבור מכשירי SNMP.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        מבנה המסך
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22">
+                        <Bold>כותרת:</Bold> שם מכשיר, כתובת IP, מספר שדות, וכפתורי פעולה (Load, Save, Register).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>צד שמאל:</Bold> טבלת שדות — מציגה ID, שם, סוג, קבוצה, הרשאות (RO/RW), ערך ברירת מחדל ויחידות.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="22" Margin="0,6,0,0">
+                        <Bold>צד ימין:</Bold> טופס עריכה — כל מאפייני השדה: ID, שם, קבוצה, סוג, תיאור,
+                        הרשאות כתיבה, ערך ברירת מחדל, יחידות, Min/Max, MaxLength, ואפשרויות (enum/toggle).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        פעולות
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">+ Add Field:</Bold>  מלא את הטופס (ID ושם חובה) ולחץ "Add Field" להוספת שדה חדש
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Update:</Bold>  בחר שדה קיים, שנה ערכים בטופס ולחץ "Update"
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Delete:</Bold>  בחר שדה ולחץ "Delete Selected" למחיקה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Duplicate:</Bold>  שכפל שדה קיים עם סיומת ".copy"
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Move Up/Down:</Bold>  שנה סדר שדות ברשימה
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        שמירה וטעינה
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Quick Save:</Bold>  שמירה מהירה ל-Data/schemas/{שם מכשיר}.json
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Save JSON As...:</Bold>  שמירה לקובץ לפי בחירת המשתמש
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Load JSON:</Bold>  טעינת שדות מקובץ JSON קיים (MIB Browser או IDD)
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Load from Device:</Bold>  טעינת שדות IDD ממכשיר שנבחר בלשונית DEVICES
+                    </TextBlock>
+                    <TextBlock Foreground="#CDD1D8" FontSize="13" LineHeight="24">
+                        <Bold Foreground="#57D9A3">Register as Device:</Bold>  שמירה + רישום כמכשיר IDD חדש ברשימת DEVICES
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#FFAB00" FontSize="14" FontWeight="Bold" LineHeight="22" Margin="0,12,0,4">
+                        11 סוגי שדות נתמכים
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#CDD1D8" FontSize="13" LineHeight="24" FontFamily="Cascadia Code,Consolas"
+                               FlowDirection="LeftToRight" HorizontalAlignment="Left">
+text       — Free text input
+number     — Integer with Min/Max range
+enum       — Dropdown (requires Options)
+toggle     — ON/OFF switch (0 and 1)
+status-led — LED indicator (read-only)
+gauge      — Numeric gauge with Units
+counter    — Incrementing counter (read-only)
+timeticks  — Duration (Xd Yh Zm Ss)
+ip         — IP address (X.X.X.X)
+oid        — OID path string
+bits       — Bit flags (hex string)
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#8C95A6" FontSize="12" LineHeight="20" Margin="0,10,0,0">
+                        טיפ: שדה Options (לסוגי enum ו-toggle) מוגדר כטקסט — שורה לכל ערך בפורמט Label=value.
+                        לדוגמה: Disabled=0 ובשורה הבאה Enabled=1.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="#8C95A6" FontSize="12" LineHeight="20" Margin="0,4,0,0">
+                        טיפ: קובץ ה-JSON שנשמר זהה לפורמט של MIB Browser Export — ניתן לטעון אותו גם ב-Angular.
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="#3D4663" Margin="0,4,0,16"/>
+
                 <!-- Section: Scenario Builder -->
                 <TextBlock Text="לשונית SCENARIOS — בניית תרחישים" FontSize="15" FontWeight="Bold"
                            Foreground="#4C9AFF" Margin="0,0,0,8"/>

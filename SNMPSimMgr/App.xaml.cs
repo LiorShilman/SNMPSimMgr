@@ -26,14 +26,15 @@ public partial class App : Application
 
         // Create ViewModels
         var deviceListVm = new DeviceListViewModel(store);
-        var recorderVm = new RecorderViewModel(recorder, trapListener, store, deviceListVm, mibStore);
+        var recorderVm = new RecorderViewModel(recorder, trapListener, store, deviceListVm, mibStore, oidWatch);
         var simulatorVm = new SimulatorViewModel(store, trapGenerator, deviceListVm, recorder, mibStore);
         var demoService = new DemoDataService(store);
         var monitorVm = new NetworkMonitorViewModel(simulatorVm);
         var mibExportService = new MibPanelExportService(mibStore, store);
         var mibBrowserVm = new MibBrowserViewModel(store, deviceListVm, mibStore, mibExportService, recorder);
         var scenarioVm = new ScenarioViewModel(simulatorVm);
-        var mainVm = new MainViewModel(deviceListVm, recorderVm, simulatorVm, demoService, monitorVm, mibBrowserVm, scenarioVm);
+        var iddEditorVm = new IddEditorViewModel(store, deviceListVm);
+        var mainVm = new MainViewModel(deviceListVm, recorderVm, simulatorVm, demoService, monitorVm, mibBrowserVm, scenarioVm, iddEditorVm);
 
         // ── SignalR Setup ──
         _signalRService = new SignalRService();

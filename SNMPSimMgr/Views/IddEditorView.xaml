@@ -1,0 +1,316 @@
+<UserControl x:Class="SNMPSimMgr.Views.IddEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BgDarkBrush}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Header: Device Identity + Actions ═══ -->
+        <Border Grid.Row="0" Style="{StaticResource SectionBorder}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Border Background="#FFAB00" CornerRadius="4" Width="28" Height="28" Margin="0,0,10,0">
+                            <TextBlock Text="I" FontSize="14" FontWeight="Bold"
+                                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="IDD Field Editor" Style="{StaticResource HeaderText}" Margin="0"/>
+                        <TextBlock Text=" — Create and edit IDD device definitions"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Device Name:" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                        <TextBox Grid.Column="1" Text="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Grid.Column="2" Text="  IP Address:" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="8,0,8,0"/>
+                        <TextBox Grid.Column="3" Text="{Binding DeviceIp, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Border Grid.Column="4" Background="{StaticResource AccentOrangeBrush}" CornerRadius="10"
+                                Padding="10,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Foreground="White" FontSize="11" FontWeight="SemiBold">
+                                <Run Text="{Binding Fields.Count, Mode=OneWay}"/>
+                                <Run Text=" fields"/>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Load from Device" Command="{Binding LoadFromDeviceCommand}"
+                            ToolTip="Load IDD fields from the selected device in DEVICES tab"/>
+                    <Button Content="Load JSON" Command="{Binding LoadFromJsonCommand}"
+                            ToolTip="Load fields from a JSON schema file"/>
+                    <Button Content="Quick Save" Command="{Binding QuickSaveCommand}"
+                            Style="{StaticResource AccentButton}"
+                            ToolTip="Save to Data/schemas/{DeviceName}.json"/>
+                    <Button Content="Save JSON As..." Command="{Binding SaveToJsonCommand}"
+                            Style="{StaticResource SuccessButton}"
+                            ToolTip="Export to a user-chosen JSON file"/>
+                    <Button Content="Register as Device" Command="{Binding RegisterAsDeviceCommand}"
+                            Style="{StaticResource SuccessButton}"
+                            ToolTip="Add/update this IDD device in the DEVICES list"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Main Content: Fields List + Edit Form ═══ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="400"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="360"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ── Left: Fields DataGrid ── -->
+            <Border Grid.Column="0" Style="{StaticResource SectionBorder}" Margin="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Fields" Style="{StaticResource HeaderText}"/>
+
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Fields}"
+                              SelectedItem="{Binding SelectedField}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" CanUserAddRows="False"
+                              VerticalScrollBarVisibility="Auto"
+                              BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="180"/>
+                            <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="140"/>
+                            <DataGridTextColumn Header="TYPE" Binding="{Binding Type}" Width="80"/>
+                            <DataGridTextColumn Header="GROUP" Binding="{Binding Group}" Width="120"/>
+                            <DataGridTemplateColumn Header="R/W" Width="50">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding IsWritable}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Setter Property="Text" Value="RO"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWritable}" Value="True">
+                                                            <Setter Property="Text" Value="RW"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="DEFAULT" Binding="{Binding DefaultValue}" Width="100"/>
+                            <DataGridTextColumn Header="UNITS" Binding="{Binding Units}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Action buttons below grid -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Move Up" Command="{Binding MoveUpCommand}"/>
+                        <Button Content="Move Down" Command="{Binding MoveDownCommand}"/>
+                        <Button Content="Duplicate" Command="{Binding DuplicateFieldCommand}"/>
+                        <Button Content="Delete Selected" Command="{Binding DeleteFieldCommand}"
+                                Style="{StaticResource DangerButton}"/>
+                        <Button Content="Clear All" Command="{Binding ClearAllCommand}"
+                                Style="{StaticResource DangerButton}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ── Right: Edit Form ── -->
+            <Border Grid.Column="2" Style="{StaticResource SectionBorder}" Margin="0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource HeaderText}">
+                                        <Setter Property="Text" Value="New Field"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                <Setter Property="Text" Value="Edit Field"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- Id -->
+                        <TextBlock Text="Field ID *" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,0,0,3"/>
+                        <TextBox Text="{Binding EditId, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Unique identifier, e.g. idd.group.fieldName"/>
+
+                        <!-- Name -->
+                        <TextBlock Text="Display Name *" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,8,0,3"/>
+                        <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Shown in the panel UI"/>
+
+                        <!-- Group -->
+                        <TextBlock Text="Group" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,8,0,3"/>
+                        <TextBox Text="{Binding EditGroup, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Section name for grouping (e.g. Device Info, Control)"/>
+
+                        <!-- Type -->
+                        <TextBlock Text="Type" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,8,0,3"/>
+                        <ComboBox ItemsSource="{Binding FieldTypes}"
+                                  SelectedItem="{Binding EditType}"
+                                  ToolTip="text | number | enum | toggle | status-led | gauge | counter | timeticks | ip | oid | bits"/>
+
+                        <!-- Description -->
+                        <TextBlock Text="Description" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,8,0,3"/>
+                        <TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Tooltip text" TextWrapping="Wrap" AcceptsReturn="False"/>
+
+                        <!-- IsWritable -->
+                        <CheckBox Content="  Writable (R/W)" IsChecked="{Binding EditIsWritable}"
+                                  Margin="0,10,0,0" ToolTip="If checked, field can be edited from the panel"/>
+
+                        <!-- Default Value -->
+                        <TextBlock Text="Default Value" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,10,0,3"/>
+                        <TextBox Text="{Binding EditDefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Initial value (always a string, e.g. '42')"/>
+
+                        <!-- Units -->
+                        <TextBlock Text="Units" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,8,0,3"/>
+                        <TextBox Text="{Binding EditUnits, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Display suffix, e.g. dBm, C, %, MB"/>
+
+                        <!-- Min / Max -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Min" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="11" Margin="0,0,0,3"/>
+                                <TextBox Text="{Binding EditMin, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Minimum numeric value"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Max" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="11" Margin="0,0,0,3"/>
+                                <TextBox Text="{Binding EditMax, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Maximum numeric value"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="MaxLen" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="11" Margin="0,0,0,3"/>
+                                <TextBox Text="{Binding EditMaxLength, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Maximum string length"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Options (for enum/toggle) -->
+                        <TextBlock Text="Options (for enum/toggle)" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11" Margin="0,10,0,3"/>
+                        <TextBox Text="{Binding EditOptionsText, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="80"
+                                 VerticalScrollBarVisibility="Auto"
+                                 ToolTip="One per line: Label=value&#x0a;Example:&#x0a;Disabled=0&#x0a;Enabled=1"
+                                 FontFamily="Cascadia Code,Consolas" FontSize="12"/>
+
+                        <!-- Action Buttons -->
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="+ Add Field" Command="{Binding AddFieldCommand}"
+                                    Style="{StaticResource SuccessButton}" Margin="0,0,4,0"/>
+                            <Button Grid.Column="1" Content="Update" Command="{Binding UpdateFieldCommand}"
+                                    Style="{StaticResource AccentButton}" Margin="0,0,4,0"/>
+                            <Button Grid.Column="2" Content="Clear" Command="{Binding ClearFormCommand}"/>
+                        </Grid>
+
+                        <!-- Type Reference -->
+                        <Border Background="#1E2233" CornerRadius="4" Padding="10" Margin="0,14,0,0"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Type Reference" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,6"/>
+                                <TextBlock FontFamily="Cascadia Code,Consolas" FontSize="10.5"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                           LineHeight="17">
+                                    <Run Text="text      "/>
+                                    <Run Text="Free text input" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="number    "/>
+                                    <Run Text="Integer (Min/Max)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="enum      "/>
+                                    <Run Text="Dropdown (Options)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="toggle    "/>
+                                    <Run Text="ON/OFF (0/1)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="status-led"/>
+                                    <Run Text=" LED indicator (r/o)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="gauge     "/>
+                                    <Run Text="Numeric gauge + Units" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="counter   "/>
+                                    <Run Text="Incrementing (r/o)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="timeticks "/>
+                                    <Run Text="Duration (Xd Yh Zm)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="ip        "/>
+                                    <Run Text="IP address (X.X.X.X)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="oid       "/>
+                                    <Run Text="OID path string" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/>
+                                    <Run Text="bits      "/>
+                                    <Run Text="Bit flags (hex)" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Status Bar ═══ -->
+        <Border Grid.Row="2" Background="#1E2233" CornerRadius="4" Padding="10,6" Margin="0,8,0,0"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+        </Border>
+    </Grid>
+</UserControl>

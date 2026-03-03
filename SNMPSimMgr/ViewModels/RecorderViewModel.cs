@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SNMPSimMgr.Hubs;
 using SNMPSimMgr.Models;
 using SNMPSimMgr.Services;
 
@@ -13,6 +14,7 @@ public partial class RecorderViewModel : ObservableObject
     private readonly DeviceProfileStore _store;
     private readonly DeviceListViewModel _deviceList;
     private readonly MibStore _mibStore;
+    private readonly OidWatchService _oidWatch;
     private CancellationTokenSource? _walkCts;
     private CancellationTokenSource? _sessionCts;
     private RecordedSession? _currentSession;
@@ -46,13 +48,15 @@ public partial class RecorderViewModel : ObservableObject
         TrapListenerService trapListener,
         DeviceProfileStore store,
         DeviceListViewModel deviceList,
-        MibStore mibStore)
+        MibStore mibStore,
+        OidWatchService oidWatch)
     {
         _recorder = recorder;
         _trapListener = trapListener;
         _store = store;
         _deviceList = deviceList;
         _mibStore = mibStore;
+        _oidWatch = oidWatch;
 
         _recorder.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
         {
@@ -444,6 +448,18 @@ public partial class RecorderViewModel : ObservableObject
                 _currentSession.Frames.Add(frame);
                 SessionFrameCount = _currentSession.Frames.Count;
                 OidCount = results.Count;
+
+                // Broadcast WALK results to Angular clients for live panel update
+                var updatedValues = results.ToDictionary(r => r.Oid, r => r.Value);
+                SnmpHub.BroadcastMibUpdate(device.Id, updatedValues);
+
+                // Trigger OID watch callbacks for automation (same watches as Simulator path)
+                foreach (var r in results)
+                {
+                    var previousValue = _oidWatch.NotifyChange(r.Oid, r.Value);
+                    if (previousValue != r.Value)
+                        SnmpHub.BroadcastOidChanged(device.Id, device.Name, r.Oid, r.Value, previousValue, "walk");
+                }
 
                 GetResults.Clear();
                 foreach (var r in results)

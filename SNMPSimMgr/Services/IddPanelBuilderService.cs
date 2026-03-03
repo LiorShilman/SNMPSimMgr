@@ -1,3 +1,6 @@
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using SNMPSimMgr.Models;
 
 namespace SNMPSimMgr.Services;
@@ -8,6 +11,27 @@ namespace SNMPSimMgr.Services;
 /// </summary>
 public static class IddPanelBuilderService
 {
+    private static readonly JsonSerializerOptions ExportJsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    /// <summary>
+    /// Export an IDD schema to a JSON file — same format as MIB Browser export.
+    /// The file can then be used as SchemaPath in DeviceProfile.
+    /// Synchronous — safe to call from constructors and startup code.
+    /// </summary>
+    public static void ExportSchemaToFile(string deviceName, string deviceIp, List<IddFieldDef> fields, string filePath)
+    {
+        var schema = BuildFromIdd(deviceName, deviceIp, fields);
+        var json = JsonSerializer.Serialize(schema, ExportJsonOptions);
+        var dir = Path.GetDirectoryName(filePath);
+        if (dir != null) Directory.CreateDirectory(dir);
+        File.WriteAllText(filePath, json);
+    }
+
     /// <summary>
     /// Build a panel schema from IDD field definitions.
     /// The result uses the same MibPanelSchema format, so Angular renders it identically.

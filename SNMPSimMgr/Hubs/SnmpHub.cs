@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR;
@@ -31,8 +32,18 @@ public class SnmpHub : Hub
     // Key = deviceId, Value = (cacheKey based on MIB file paths, cached schema).
     private static readonly Dictionary<string, (string cacheKey, MibPanelSchema schema)> SchemaCache = new();
 
+    // For deserializing pre-built schema JSON files (camelCase from MIB Browser export)
+    private static readonly System.Text.Json.JsonSerializerOptions SchemaJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private static string BuildCacheKey(DeviceProfile device)
     {
+        // SchemaPath takes priority — cache key is the file path itself
+        if (!string.IsNullOrEmpty(device.SchemaPath))
+            return "schema:" + device.SchemaPath;
+
         // Sorted MIB file paths → deterministic key. If user adds/removes MIBs, key changes.
         var paths = device.MibFilePaths?.OrderBy(p => p) ?? Enumerable.Empty<string>();
         return string.Join("|", paths);
@@ -183,6 +194,31 @@ public class SnmpHub : Hub
                     System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema cache HIT for {device.Name} ({cached.schema.TotalFields} fields)");
                     return cached.schema;
                 }
+            }
+
+            // Pre-built schema JSON — load directly, skip MIB parsing / IDD build
+            if (!string.IsNullOrEmpty(device.SchemaPath) && File.Exists(device.SchemaPath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[SnmpHub] Loading pre-built schema from: {device.SchemaPath}");
+                var json = await Task.Run(() => File.ReadAllText(device.SchemaPath));
+                var fileSchema = System.Text.Json.JsonSerializer.Deserialize<MibPanelSchema>(json, SchemaJsonOptions);
+                if (fileSchema != null)
+                {
+                    lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, fileSchema); }
+                    System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema loaded from file: {fileSchema.TotalFields} fields, {fileSchema.Modules?.Count} modules");
+                    return fileSchema;
+                }
+                System.Diagnostics.Debug.WriteLine($"[SnmpHub] Failed to deserialize schema from: {device.SchemaPath}");
+            }
+
+            // IDD device — build schema from IDD field definitions (no SNMP)
+            if (device.IsIddDevice)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SnmpHub] IDD device: {device.Name}, building IDD schema...");
+                var iddSchema = IddPanelBuilderService.BuildFromIdd(device.Name, device.IpAddress, device.IddFields!);
+                lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, iddSchema); }
+                System.Diagnostics.Debug.WriteLine($"[SnmpHub] IDD schema built: {iddSchema.TotalFields} fields, {iddSchema.Modules?.Count} modules");
+                return iddSchema;
             }
 
             System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema cache MISS for {device.Name}, loading MIBs...");

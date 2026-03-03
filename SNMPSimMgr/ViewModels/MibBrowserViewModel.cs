@@ -592,6 +592,24 @@ public partial class MibBrowserViewModel : ObservableObject
         {
             ExportStatus = "Exporting...";
             await _exportService.ExportToFileAsync(device, dialog.FileName);
+
+            // Auto-save to Data/schemas/ for fast loading via SchemaPath
+            var schemasDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "schemas");
+            Directory.CreateDirectory(schemasDir);
+            var schemaFile = Path.Combine(schemasDir, device.Name + ".json");
+            if (dialog.FileName != schemaFile)
+                await Task.Run(() => File.Copy(dialog.FileName, schemaFile, overwrite: true));
+
+            // Update device profile with SchemaPath and persist
+            device.SchemaPath = schemaFile;
+            var profiles = await _store.LoadProfilesAsync();
+            var target = profiles.FirstOrDefault(p => p.Id == device.Id);
+            if (target != null)
+            {
+                target.SchemaPath = schemaFile;
+                await _store.SaveProfilesAsync(profiles);
+            }
+
             ExportStatus = $"Exported {_mibStore.TotalDefinitions} fields to {Path.GetFileName(dialog.FileName)}";
         }
         catch (Exception ex)

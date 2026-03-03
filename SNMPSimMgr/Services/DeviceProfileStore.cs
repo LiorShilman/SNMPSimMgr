@@ -9,6 +9,8 @@ public class DeviceProfileStore
     private static readonly string DataRoot = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "Data");
 
+    private static readonly string SchemasRoot = Path.Combine(DataRoot, "schemas");
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true
@@ -17,6 +19,7 @@ public class DeviceProfileStore
     public DeviceProfileStore()
     {
         Directory.CreateDirectory(DataRoot);
+        Directory.CreateDirectory(SchemasRoot);
     }
 
     private string ProfilesPath => Path.Combine(DataRoot, "devices.json");
@@ -35,7 +38,20 @@ public class DeviceProfileStore
             return new List<DeviceProfile>();
 
         var json = await Task.Run(() => File.ReadAllText(ProfilesPath));
-        return JsonSerializer.Deserialize<List<DeviceProfile>>(json, JsonOptions) ?? new();
+        var profiles = JsonSerializer.Deserialize<List<DeviceProfile>>(json, JsonOptions) ?? new();
+
+        // Auto-detect schema JSON files for devices without SchemaPath
+        foreach (var device in profiles)
+        {
+            if (string.IsNullOrEmpty(device.SchemaPath))
+            {
+                var schemaFile = Path.Combine(SchemasRoot, device.Name + ".json");
+                if (File.Exists(schemaFile))
+                    device.SchemaPath = schemaFile;
+            }
+        }
+
+        return profiles;
     }
 
     public async Task SaveProfilesAsync(List<DeviceProfile> profiles)

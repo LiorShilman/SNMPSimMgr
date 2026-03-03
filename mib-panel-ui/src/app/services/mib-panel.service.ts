@@ -69,6 +69,51 @@ export class MibPanelService {
       });
     });
 
+    // Batch update — fired by BroadcastMibUpdate (e.g. after periodic WALK)
+    effect(() => {
+      const update = this.signalR.latestMibUpdate();
+      if (!update || !update.values) return;
+
+      console.log(`[MibPanel] MIB batch update: ${Object.keys(update.values).length} OIDs (device: ${update.deviceId})`);
+
+      untracked(() => {
+        const current = this.schema();
+        if (!current) return;
+
+        const values = update.values;
+        let updated = false;
+
+        for (const module of current.modules) {
+          for (const field of module.scalars) {
+            const fieldOid = field.oid.endsWith('.0') ? field.oid : field.oid + '.0';
+            if (values[fieldOid] !== undefined) {
+              field.currentValue = values[fieldOid];
+              updated = true;
+            } else if (values[field.oid] !== undefined) {
+              field.currentValue = values[field.oid];
+              updated = true;
+            }
+          }
+
+          for (const table of module.tables) {
+            for (const col of table.columns) {
+              for (const row of table.rows) {
+                const cellOid = col.oid + '.' + row.index;
+                if (values[cellOid] !== undefined && row.values[col.oid]) {
+                  row.values[col.oid].value = values[cellOid];
+                  updated = true;
+                }
+              }
+            }
+          }
+        }
+
+        if (updated) {
+          this.emitSchema(current);
+        }
+      });
+    });
+
     // Forward OID change events — fires only when a value actually changes (not on every GET)
     effect(() => {
       const change = this.signalR.latestOidChanged();

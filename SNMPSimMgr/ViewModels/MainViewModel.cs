@@ -27,6 +27,7 @@ public partial class MainViewModel : ObservableObject
     public NetworkMonitorViewModel Monitor { get; }
     public MibBrowserViewModel MibBrowser { get; }
     public ScenarioViewModel Scenario { get; }
+    public IddEditorViewModel IddEditor { get; }
 
     public MainViewModel(
         DeviceListViewModel deviceList,
@@ -35,7 +36,8 @@ public partial class MainViewModel : ObservableObject
         DemoDataService demoService,
         NetworkMonitorViewModel monitor,
         MibBrowserViewModel mibBrowser,
-        ScenarioViewModel scenario)
+        ScenarioViewModel scenario,
+        IddEditorViewModel iddEditor)
     {
         DeviceList = deviceList;
         Recorder = recorder;
@@ -43,6 +45,7 @@ public partial class MainViewModel : ObservableObject
         Monitor = monitor;
         MibBrowser = mibBrowser;
         Scenario = scenario;
+        IddEditor = iddEditor;
         _demoService = demoService;
     }
 
