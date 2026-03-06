@@ -21,10 +21,8 @@ bld/
 [Ll]ogs/
 
 ## NuGet
-*.nupkg
 *.snupkg
-**/[Pp]ackages/*
-!**/[Pp]ackages/build/
+!packages/*.nupkg
 *.nuget.props
 *.nuget.targets
 project.lock.json

@@ -1,16 +1,22 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 
-namespace SNMPSimMgr.Views;
-
-public partial class UserGuideWindow : Window
+namespace SNMPSimMgr.Views
 {
-    public UserGuideWindow()
+    public partial class UserGuideWindow : Window
     {
-        InitializeComponent();
-    }
+        public UserGuideWindow()
+        {
+            InitializeComponent();
+        }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
     }
 }

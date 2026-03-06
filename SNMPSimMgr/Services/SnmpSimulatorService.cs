@@ -9,379 +9,378 @@ using System.Threading.Tasks;
 using SnmpSharpNet;
 using SNMPSimMgr.Models;
 
-namespace SNMPSimMgr.Services;
-
-public class SnmpSimulatorService : IDisposable
+namespace SNMPSimMgr.Services
 {
-    private UdpClient? _listener;
-    private CancellationTokenSource? _cts;
-    private CancellationTokenSource? _injectionCts;
-    private Task? _listenTask;
-
-    private SortedDictionary<string, SnmpRecord> _mibData = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, string> _dynamicValues = new();
-
-    public event Action<string>? LogMessage;
-    public event Action<string, string, string, string>? RequestReceived; // op, oid, val, sourceIp
-    public event Action<int, int>? InjectionProgress; // currentFrame, totalFrames
-    public event Action<int, List<SnmpRecord>>? InjectionFrameApplied; // frameIndex, records
-
-    public bool IsRunning => _cts != null && !_cts.IsCancellationRequested;
-    public bool IsInjecting => _injectionCts != null && !_injectionCts.IsCancellationRequested;
-    public int Port { get; private set; }
-    public string DeviceName { get; private set; } = string.Empty;
-
-    public void LoadMibData(List<SnmpRecord> walkData, string deviceName)
+    public class SnmpSimulatorService : IDisposable
     {
-        DeviceName = deviceName;
-        _mibData = new SortedDictionary<string, SnmpRecord>(StringComparer.Ordinal);
-        foreach (var record in walkData)
-            _mibData[record.Oid] = record;
-        Log($"Loaded {_mibData.Count} OIDs for device '{deviceName}'.");
-    }
+        private UdpClient _listener;
+        private CancellationTokenSource _cts;
+        private CancellationTokenSource _injectionCts;
+        private Task _listenTask;
 
-    public void Start(int port, string community = "public", string listenIp = "0.0.0.0")
-    {
-        if (IsRunning) return;
+        private SortedDictionary<string, SnmpRecord> _mibData = new SortedDictionary<string, SnmpRecord>(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, string>  _dynamicValues = new ConcurrentDictionary<string, string>();
 
-        Port = port;
-        var ip = IPAddress.Parse(listenIp);
-        _cts = new CancellationTokenSource();
-        _listener = new UdpClient(new IPEndPoint(ip, port));
-        Log($"Simulator '{DeviceName}' listening on {listenIp}:{port}...");
-        _listenTask = Task.Run(() => ListenLoop(community, _cts.Token));
-    }
+        public event Action<string> LogMessage;
+        public event Action<string, string, string, string> RequestReceived; // op, oid, val, sourceIp
+        public event Action<int, int> InjectionProgress; // currentFrame, totalFrames
+        public event Action<int, List<SnmpRecord>> InjectionFrameApplied; // frameIndex, records
 
-    public void Stop()
-    {
-        if (!IsRunning) return;
+        public bool IsRunning => _cts != null && !_cts.IsCancellationRequested;
+        public bool IsInjecting => _injectionCts != null && !_injectionCts.IsCancellationRequested;
+        public int Port { get; private set; }
+        public string DeviceName { get; private set; } = string.Empty;
 
-        _cts?.Cancel();
-        _listener?.Close();
-        _listener?.Dispose();
-        _listener = null;
-        _cts = null;
-        Log($"Simulator '{DeviceName}' stopped.");
-    }
+        public void LoadMibData(List<SnmpRecord> walkData, string deviceName)
+        {
+            DeviceName = deviceName;
+            _mibData = new SortedDictionary<string, SnmpRecord>(StringComparer.Ordinal);
+            foreach (var record in walkData)
+                _mibData[record.Oid] = record;
+            Log($"Loaded {_mibData.Count} OIDs for device '{deviceName}'.");
+        }
 
-    public void SetValue(string oid, string value)
-    {
-        _dynamicValues[oid] = value;
-        Log($"SET {oid} = {value}");
-    }
+        public void Start(int port, string community = "public", string listenIp = "0.0.0.0")
+        {
+            if (IsRunning) return;
 
-    private string GetValue(string oid)
-    {
-        if (_dynamicValues.TryGetValue(oid, out var dynVal))
-            return dynVal;
-        if (_mibData.TryGetValue(oid, out var record))
-            return record.Value;
-        return string.Empty;
-    }
+            Port = port;
+            var ip = IPAddress.Parse(listenIp);
+            _cts = new CancellationTokenSource();
+            _listener = new UdpClient(new IPEndPoint(ip, port));
+            Log($"Simulator '{DeviceName}' listening on {listenIp}:{port}...");
+            _listenTask = Task.Run(() => ListenLoop(community, _cts.Token));
+        }
 
-    private byte GetValueType(string oid)
-    {
-        if (_mibData.TryGetValue(oid, out var record))
-            return SnmpTypeHelper.StringToType(record.ValueType);
-        return SnmpTypeHelper.OctetString;
-    }
+        public void Stop()
+        {
+            if (!IsRunning) return;
 
-    private async Task ListenLoop(string community, CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
+            _cts?.Cancel();
+            _listener?.Close();
+            _listener?.Dispose();
+            _listener = null;
+            _cts = null;
+            Log($"Simulator '{DeviceName}' stopped.");
+        }
+
+        public void SetValue(string oid, string value)
+        {
+            _dynamicValues[oid] = value;
+            Log($"SET {oid} = {value}");
+        }
+
+        private string GetValue(string oid)
+        {
+            if (_dynamicValues.TryGetValue(oid, out var dynVal))
+                return dynVal;
+            if (_mibData.TryGetValue(oid, out var record))
+                return record.Value;
+            return string.Empty;
+        }
+
+        private byte GetValueType(string oid)
+        {
+            if (_mibData.TryGetValue(oid, out var record))
+                return SnmpTypeHelper.StringToType(record.ValueType);
+            return SnmpTypeHelper.OctetString;
+        }
+
+        private async Task ListenLoop(string community, CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    var receiveTask = _listener!.ReceiveAsync();
+                    var cancelTask = Task.Delay(Timeout.Infinite, ct);
+                    var completed = await Task.WhenAny(receiveTask, cancelTask);
+                    if (completed == cancelTask) break;
+                    var result = receiveTask.Result;
+                    _ = Task.Run(() => HandleRequest(result.Buffer, result.RemoteEndPoint, community));
+                }
+                catch (OperationCanceledException) { break; }
+                catch (ObjectDisposedException) { break; }
+                catch (Exception ex)
+                {
+                    Log($"Error receiving: {ex.Message}");
+                }
+            }
+        }
+
+        private void HandleRequest(byte[] data, IPEndPoint remoteEp, string expectedCommunity)
         {
             try
             {
-                var receiveTask = _listener!.ReceiveAsync();
-                var cancelTask = Task.Delay(Timeout.Infinite, ct);
-                var completed = await Task.WhenAny(receiveTask, cancelTask);
-                if (completed == cancelTask) break;
-                var result = receiveTask.Result;
-                _ = Task.Run(() => HandleRequest(result.Buffer, result.RemoteEndPoint, community));
+                int ver = SnmpPacket.GetProtocolVersion(data, data.Length);
+
+                if (ver == (int)SnmpVersion.Ver2)
+                    HandleV2cRequest(data, remoteEp, expectedCommunity);
+                else
+                    Log($"Unsupported SNMP version {ver} from {remoteEp}");
             }
-            catch (OperationCanceledException) { break; }
-            catch (ObjectDisposedException) { break; }
             catch (Exception ex)
             {
-                Log($"Error receiving: {ex.Message}");
+                Log($"Error handling request from {remoteEp}: {ex.Message}");
             }
         }
-    }
 
-    private void HandleRequest(byte[] data, IPEndPoint remoteEp, string expectedCommunity)
-    {
-        try
+        private void HandleV2cRequest(byte[] data, IPEndPoint remoteEp, string expectedCommunity)
         {
-            int ver = SnmpPacket.GetProtocolVersion(data, data.Length);
+            var request = new SnmpV2Packet();
+            request.decode(data, data.Length);
 
-            if (ver == (int)SnmpVersion.Ver2)
-                HandleV2cRequest(data, remoteEp, expectedCommunity);
-            else
-                Log($"Unsupported SNMP version {ver} from {remoteEp}");
-        }
-        catch (Exception ex)
-        {
-            Log($"Error handling request from {remoteEp}: {ex.Message}");
-        }
-    }
-
-    private void HandleV2cRequest(byte[] data, IPEndPoint remoteEp, string expectedCommunity)
-    {
-        var request = new SnmpV2Packet();
-        request.decode(data, data.Length);
-
-        if (request.Community.ToString() != expectedCommunity)
-        {
-            Log($"Bad community string from {remoteEp}");
-            return;
-        }
-
-        var response = new SnmpV2Packet();
-        response.Community.Set(expectedCommunity);
-        response.Pdu.RequestId = request.Pdu.RequestId;
-
-        var sourceIp = remoteEp.Address.ToString();
-
-        switch (request.Pdu.Type)
-        {
-            case PduType.Get:
-                HandleGet(request.Pdu, response.Pdu, sourceIp);
-                break;
-            case PduType.GetNext:
-                HandleGetNext(request.Pdu, response.Pdu, sourceIp);
-                break;
-            case PduType.GetBulk:
-                HandleGetBulk(request.Pdu, response.Pdu, sourceIp);
-                break;
-            case PduType.Set:
-                HandleSet(request.Pdu, response.Pdu, sourceIp);
-                break;
-            default:
-                Log($"Unsupported PDU type: {request.Pdu.Type}");
+            if (request.Community.ToString() != expectedCommunity)
+            {
+                Log($"Bad community string from {remoteEp}");
                 return;
-        }
-
-        response.Pdu.Type = PduType.Response;
-        var responseBytes = response.encode();
-        _listener?.Send(responseBytes, responseBytes.Length, remoteEp);
-    }
-
-    private void HandleGet(Pdu request, Pdu response, string sourceIp)
-    {
-        int found = 0, missing = 0;
-        bool isBatch = request.VbList.Count > 1;
-
-        foreach (var vb in request.VbList)
-        {
-            var oid = vb.Oid.ToString();
-            if (_mibData.ContainsKey(oid) || _dynamicValues.ContainsKey(oid))
-            {
-                var val = GetValue(oid);
-                var vbType = GetValueType(oid);
-                response.VbList.Add(vb.Oid, SnmpTypeHelper.CreateValue(vbType, val));
-                found++;
-
-                if (!isBatch)
-                {
-                    RequestReceived?.Invoke("GET", oid, val, sourceIp);
-                    Log($"GET {oid} → {val}");
-                }
             }
-            else
+
+            var response = new SnmpV2Packet();
+            response.Community.Set(expectedCommunity);
+            response.Pdu.RequestId = request.Pdu.RequestId;
+
+            var sourceIp = remoteEp.Address.ToString();
+
+            switch (request.Pdu.Type)
             {
-                response.VbList.Add(vb.Oid, new NoSuchInstance());
-                missing++;
-
-                if (!isBatch)
-                {
-                    RequestReceived?.Invoke("GET", oid, string.Empty, sourceIp);
-                    Log($"GET {oid} → NoSuchInstance");
-                }
-            }
-        }
-
-        // Batch: single summary log + event to avoid flooding UI
-        if (isBatch)
-        {
-            var firstOid = request.VbList[0].Oid.ToString();
-            Log($"GET batch ({found + missing} OIDs) {firstOid}.. → {found} ok, {missing} missing");
-            RequestReceived?.Invoke("GET", $"{firstOid} (+{found + missing - 1})", $"{found} values", sourceIp);
-        }
-    }
-
-    private void HandleGetNext(Pdu request, Pdu response, string sourceIp)
-    {
-        foreach (var vb in request.VbList)
-        {
-            var requestedOid = vb.Oid.ToString();
-
-            var nextOid = FindNextOid(requestedOid);
-            if (nextOid != null)
-            {
-                var val = GetValue(nextOid);
-                var vbType = GetValueType(nextOid);
-                response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
-                RequestReceived?.Invoke("GETNEXT", nextOid, val, sourceIp);
-                Log($"GETNEXT {requestedOid} → {nextOid} = {val}");
-            }
-            else
-            {
-                response.VbList.Add(vb.Oid, new EndOfMibView());
-                RequestReceived?.Invoke("GETNEXT", requestedOid, string.Empty, sourceIp);
-                Log($"GETNEXT {requestedOid} → EndOfMibView");
-            }
-        }
-    }
-
-    private void HandleGetBulk(Pdu request, Pdu response, string sourceIp)
-    {
-        int maxRepetitions = request.MaxRepetitions > 0 ? request.MaxRepetitions : 10;
-
-        foreach (var vb in request.VbList)
-        {
-            var currentOid = vb.Oid.ToString();
-
-            for (int i = 0; i < maxRepetitions; i++)
-            {
-                var nextOid = FindNextOid(currentOid);
-                if (nextOid == null)
-                {
-                    response.VbList.Add(new Oid(currentOid), new EndOfMibView());
+                case PduType.Get:
+                    HandleGet(request.Pdu, response.Pdu, sourceIp);
                     break;
-                }
-
-                var val = GetValue(nextOid);
-                var vbType = GetValueType(nextOid);
-                response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
-                RequestReceived?.Invoke("GETBULK", nextOid, val, sourceIp);
-                currentOid = nextOid;
+                case PduType.GetNext:
+                    HandleGetNext(request.Pdu, response.Pdu, sourceIp);
+                    break;
+                case PduType.GetBulk:
+                    HandleGetBulk(request.Pdu, response.Pdu, sourceIp);
+                    break;
+                case PduType.Set:
+                    HandleSet(request.Pdu, response.Pdu, sourceIp);
+                    break;
+                default:
+                    Log($"Unsupported PDU type: {request.Pdu.Type}");
+                    return;
             }
 
-            Log($"GETBULK {vb.Oid} → {response.VbList.Count} items");
+            response.Pdu.Type = PduType.Response;
+            var responseBytes = response.encode();
+            _listener?.Send(responseBytes, responseBytes.Length, remoteEp);
         }
-    }
 
-    private void HandleSet(Pdu request, Pdu response, string sourceIp)
-    {
-        foreach (var vb in request.VbList)
+        private void HandleGet(Pdu request, Pdu response, string sourceIp)
         {
-            var oid = vb.Oid.ToString();
-            var val = vb.Value?.ToString() ?? string.Empty;
-            RequestReceived?.Invoke("SET", oid, val, sourceIp);
+            int found = 0, missing = 0;
+            bool isBatch = request.VbList.Count > 1;
 
-            _dynamicValues[oid] = val;
-
-            if (!_mibData.ContainsKey(oid))
+            foreach (var vb in request.VbList)
             {
-                _mibData[oid] = new SnmpRecord
+                var oid = vb.Oid.ToString();
+                if (_mibData.ContainsKey(oid) || _dynamicValues.ContainsKey(oid))
                 {
-                    Oid = oid,
-                    Value = val,
-                    ValueType = SnmpTypeHelper.TypeToString(vb.Value?.Type ?? SnmpTypeHelper.OctetString)
-                };
-            }
+                    var val = GetValue(oid);
+                    var vbType = GetValueType(oid);
+                    response.VbList.Add(vb.Oid, SnmpTypeHelper.CreateValue(vbType, val));
+                    found++;
 
-            response.VbList.Add(vb.Oid, vb.Value);
-            Log($"SET {oid} = {val}");
-        }
-    }
-
-    private string? FindNextOid(string currentOid)
-    {
-        bool found = false;
-        foreach (var key in _mibData.Keys)
-        {
-            if (found) return key;
-            if (string.Compare(key, currentOid, StringComparison.Ordinal) > 0)
-                return key;
-            if (key == currentOid)
-                found = true;
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Inject a recorded session — replays OID value changes over time.
-    /// The simulator must already be running. Values update in real-time
-    /// and loop back to the start when the recording ends.
-    /// </summary>
-    public void StartInjection(RecordedSession session)
-    {
-        StopInjection();
-
-        if (session.Frames.Count == 0)
-        {
-            Log("No frames in session to inject.");
-            return;
-        }
-
-        _injectionCts = new CancellationTokenSource();
-        var ct = _injectionCts.Token;
-
-        Task.Run(async () =>
-        {
-            Log($"Injection started — {session.Frames.Count} frames, looping playback...");
-
-            while (!ct.IsCancellationRequested)
-            {
-                long startTick = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency;
-
-                for (int i = 0; i < session.Frames.Count; i++)
-                {
-                    if (ct.IsCancellationRequested) break;
-
-                    var frame = session.Frames[i];
-
-                    // Wait until the right time for this frame
-                    long targetMs = frame.ElapsedMs;
-                    long elapsed = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency - startTick;
-                    if (targetMs > elapsed)
+                    if (!isBatch)
                     {
-                        try { await Task.Delay((int)(targetMs - elapsed), ct); }
-                        catch (OperationCanceledException) { break; }
+                        RequestReceived.Invoke("GET", oid, val, sourceIp);
+                        Log($"GET {oid} → {val}");
+                    }
+                }
+                else
+                {
+                    response.VbList.Add(vb.Oid, new NoSuchInstance());
+                    missing++;
+
+                    if (!isBatch)
+                    {
+                        RequestReceived.Invoke("GET", oid, string.Empty, sourceIp);
+                        Log($"GET {oid} → NoSuchInstance");
+                    }
+                }
+            }
+
+            // Batch: single summary log + event to avoid flooding UI
+            if (isBatch)
+            {
+                var firstOid = request.VbList[0].Oid.ToString();
+                Log($"GET batch ({found + missing} OIDs) {firstOid}.. → {found} ok, {missing} missing");
+                RequestReceived.Invoke("GET", $"{firstOid} (+{found + missing - 1})", $"{found} values", sourceIp);
+            }
+        }
+
+        private void HandleGetNext(Pdu request, Pdu response, string sourceIp)
+        {
+            foreach (var vb in request.VbList)
+            {
+                var requestedOid = vb.Oid.ToString();
+
+                var nextOid = FindNextOid(requestedOid);
+                if (nextOid != null)
+                {
+                    var val = GetValue(nextOid);
+                    var vbType = GetValueType(nextOid);
+                    response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
+                    RequestReceived.Invoke("GETNEXT", nextOid, val, sourceIp);
+                    Log($"GETNEXT {requestedOid} → {nextOid} = {val}");
+                }
+                else
+                {
+                    response.VbList.Add(vb.Oid, new EndOfMibView());
+                    RequestReceived.Invoke("GETNEXT", requestedOid, string.Empty, sourceIp);
+                    Log($"GETNEXT {requestedOid} → EndOfMibView");
+                }
+            }
+        }
+
+        private void HandleGetBulk(Pdu request, Pdu response, string sourceIp)
+        {
+            int maxRepetitions = request.MaxRepetitions > 0 ? request.MaxRepetitions : 10;
+
+            foreach (var vb in request.VbList)
+            {
+                var currentOid = vb.Oid.ToString();
+
+                for (int i = 0; i < maxRepetitions; i++)
+                {
+                    var nextOid = FindNextOid(currentOid);
+                    if (nextOid == null)
+                    {
+                        response.VbList.Add(new Oid(currentOid), new EndOfMibView());
+                        break;
                     }
 
-                    // Apply all OID values from this frame
-                    foreach (var record in frame.Records)
-                    {
-                        _dynamicValues[record.Oid] = record.Value;
+                    var val = GetValue(nextOid);
+                    var vbType = GetValueType(nextOid);
+                    response.VbList.Add(new Oid(nextOid), SnmpTypeHelper.CreateValue(vbType, val));
+                    RequestReceived.Invoke("GETBULK", nextOid, val, sourceIp);
+                    currentOid = nextOid;
+                }
 
-                        if (!_mibData.ContainsKey(record.Oid))
+                Log($"GETBULK {vb.Oid} → {response.VbList.Count} items");
+            }
+        }
+
+        private void HandleSet(Pdu request, Pdu response, string sourceIp)
+        {
+            foreach (var vb in request.VbList)
+            {
+                var oid = vb.Oid.ToString();
+                var val = vb.Value.ToString() ?? string.Empty;
+                RequestReceived.Invoke("SET", oid, val, sourceIp);
+
+                _dynamicValues[oid] = val;
+
+                if (!_mibData.ContainsKey(oid))
+                {
+                    _mibData[oid] = new SnmpRecord() {
+                        Oid = oid,
+                        Value = val,
+                        ValueType = SnmpTypeHelper.TypeToString(vb.Value.Type)
+                    };
+                }
+
+                response.VbList.Add(vb.Oid, vb.Value);
+                Log($"SET {oid} = {val}");
+            }
+        }
+
+        private string FindNextOid(string currentOid)
+        {
+            bool found = false;
+            foreach (var key in _mibData.Keys)
+            {
+                if (found) return key;
+                if (string.Compare(key, currentOid, StringComparison.Ordinal) > 0)
+                    return key;
+                if (key == currentOid)
+                    found = true;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Inject a recorded session — replays OID value changes over time.
+        /// The simulator must already be running. Values update in real-time
+        /// and loop back to the start when the recording ends.
+        /// </summary>
+        public void StartInjection(RecordedSession session)
+        {
+            StopInjection();
+
+            if (session.Frames.Count == 0)
+            {
+                Log("No frames in session to inject.");
+                return;
+            }
+
+            _injectionCts = new CancellationTokenSource();
+            var ct = _injectionCts.Token;
+
+            Task.Run(async () =>
+            {
+                Log($"Injection started — {session.Frames.Count} frames, looping playback...");
+
+                while (!ct.IsCancellationRequested)
+                {
+                    long startTick = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency;
+
+                    for (int i = 0; i < session.Frames.Count; i++)
+                    {
+                        if (ct.IsCancellationRequested) break;
+
+                        var frame = session.Frames[i];
+
+                        // Wait until the right time for this frame
+                        long targetMs = frame.ElapsedMs;
+                        long elapsed = System.Diagnostics.Stopwatch.GetTimestamp() * 1000 / System.Diagnostics.Stopwatch.Frequency - startTick;
+                        if (targetMs > elapsed)
                         {
-                            _mibData[record.Oid] = new SnmpRecord
-                            {
-                                Oid = record.Oid,
-                                Value = record.Value,
-                                ValueType = record.ValueType
-                            };
+                            try { await Task.Delay((int)(targetMs - elapsed), ct); }
+                            catch (OperationCanceledException) { break; }
                         }
+
+                        // Apply all OID values from this frame
+                        foreach (var record in frame.Records)
+                        {
+                            _dynamicValues[record.Oid] = record.Value;
+
+                            if (!_mibData.ContainsKey(record.Oid))
+                            {
+                                _mibData[record.Oid] = new SnmpRecord() {
+                                    Oid = record.Oid,
+                                    Value = record.Value,
+                                    ValueType = record.ValueType
+                                };
+                            }
+                        }
+
+                        InjectionProgress.Invoke(i + 1, session.Frames.Count);
+                        InjectionFrameApplied.Invoke(i + 1, frame.Records);
+                        Log($"Injection frame {i + 1}/{session.Frames.Count} applied — {frame.Records.Count} OIDs updated");
                     }
 
-                    InjectionProgress?.Invoke(i + 1, session.Frames.Count);
-                    InjectionFrameApplied?.Invoke(i + 1, frame.Records);
-                    Log($"Injection frame {i + 1}/{session.Frames.Count} applied — {frame.Records.Count} OIDs updated");
+                    if (!ct.IsCancellationRequested)
+                        Log("Injection loop complete, restarting...");
                 }
 
-                if (!ct.IsCancellationRequested)
-                    Log("Injection loop complete, restarting...");
-            }
+                Log("Injection stopped.");
+            }, ct);
+        }
 
-            Log("Injection stopped.");
-        }, ct);
-    }
+        public void StopInjection()
+        {
+            _injectionCts?.Cancel();
+            _injectionCts = null;
+        }
 
-    public void StopInjection()
-    {
-        _injectionCts?.Cancel();
-        _injectionCts = null;
-    }
+        private void Log(string msg) => LogMessage.Invoke(msg);
 
-    private void Log(string msg) => LogMessage?.Invoke(msg);
-
-    public void Dispose()
-    {
-        StopInjection();
-        Stop();
-        GC.SuppressFinalize(this);
+        public void Dispose()
+        {
+            StopInjection();
+            Stop();
+            GC.SuppressFinalize(this);
+        }
     }
 }

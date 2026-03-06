@@ -3,15 +3,39 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net472</TargetFramework>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
+    <LangVersion>8.0</LangVersion>
     <UseWPF>true</UseWPF>
+    <!-- Offline: restore from local packages/ folder (next to .sln) -->
+    <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)..\packages</RestoreAdditionalProjectSources>
+    <!-- UsePreGeneratedMvvm: when true, uses pre-built source files from ../Generated/
+         instead of CommunityToolkit.Mvvm source generators. Use this for offline builds
+         on machines where source generators fail (older .NET SDK).
+         Usage: dotnet build -p:UsePreGeneratedMvvm=true -->
+    <UsePreGeneratedMvvm Condition="'$(UsePreGeneratedMvvm)' == ''">false</UsePreGeneratedMvvm>
   </PropertyGroup>
+
+  <!-- Reference assemblies — allows building on machines without .NET 4.7.2 Targeting Pack -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Offline mode: include pre-generated MVVM source files and disable source generators -->
+  <ItemGroup Condition="'$(UsePreGeneratedMvvm)' == 'true'">
+    <Compile Include="..\Generated\**\*.cs" LinkBase="Generated" />
+  </ItemGroup>
+
+  <Target Name="DisableMvvmGeneratorsForOffline"
+          Condition="'$(UsePreGeneratedMvvm)' == 'true'"
+          AfterTargets="ResolvePackageDependenciesForBuild;ResolveNuGetPackageAssets">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'CommunityToolkit.Mvvm'" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="SnmpSharpNet" Version="0.9.7" />
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
 
     <!-- SignalR 2.0 self-hosting (OWIN / Katana) -->
     <PackageReference Include="Owin" Version="1.0.0" />
@@ -25,13 +49,6 @@
     <PackageReference Include="Microsoft.Owin.SelfHost" Version="4.2.2" />
     <PackageReference Include="Microsoft.Owin.Host.HttpListener" Version="4.2.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-
-  <!-- Copy schema JSON files to output directory -->
-  <ItemGroup>
-    <Content Include="Data\schemas\*.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>

@@ -1,13 +1,16 @@
 <UserControl x:Class="SNMPSimMgr.Views.RecorderView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:models="clr-namespace:SNMPSimMgr.Models">
+             xmlns:models="clr-namespace:SNMPSimMgr.Models"
+             xmlns:helpers="clr-namespace:SNMPSimMgr.Helpers">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  helpers:ScrollHelper.BubbleMouseWheel="True">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" MinHeight="200"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -312,11 +315,15 @@
             </Border>
 
             <!-- System Log header -->
-            <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="System Log" FontWeight="SemiBold" FontSize="13"/>
-                <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}"
-                         Margin="10,0,0,0" VerticalAlignment="Center"/>
-            </StackPanel>
+            <DockPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,6">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <TextBlock Text="System Log" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}"
+                             Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button DockPanel.Dock="Right" Content="Clear" Command="{Binding ClearLogCommand}"
+                        HorizontalAlignment="Right" Padding="6,2" FontSize="10"/>
+            </DockPanel>
             <!-- System Log list -->
             <Border Grid.Row="1" Grid.Column="2" CornerRadius="6"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
@@ -351,4 +358,5 @@
             </DataGrid>
         </Expander>
     </Grid>
+    </ScrollViewer>
 </UserControl>

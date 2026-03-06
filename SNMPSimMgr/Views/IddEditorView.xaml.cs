@@ -1,11 +1,17 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 
-namespace SNMPSimMgr.Views;
-
-public partial class IddEditorView : UserControl
+namespace SNMPSimMgr.Views
 {
-    public IddEditorView()
+    public partial class IddEditorView : UserControl
     {
-        InitializeComponent();
+        public IddEditorView()
+        {
+            InitializeComponent();
+        }
     }
 }

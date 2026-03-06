@@ -80,7 +80,8 @@
         </Border>
 
         <!-- Main Content -->
-        <TabControl Grid.Row="1" Margin="12,8,12,4">
+        <TabControl Grid.Row="1" Margin="12,8,12,4" x:Name="MainTabs"
+                    SelectionChanged="MainTabs_SelectionChanged">
             <TabItem Header="DEVICES">
                 <views:DeviceListView DataContext="{Binding DeviceList}"/>
             </TabItem>

@@ -1,11 +1,17 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 
-namespace SNMPSimMgr.Views;
-
-public partial class NetworkMonitorView : UserControl
+namespace SNMPSimMgr.Views
 {
-    public NetworkMonitorView()
+    public partial class NetworkMonitorView : UserControl
     {
-        InitializeComponent();
+        public NetworkMonitorView()
+        {
+            InitializeComponent();
+        }
     }
 }

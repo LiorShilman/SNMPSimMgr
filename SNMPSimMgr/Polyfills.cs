@@ -4,6 +4,11 @@
 #if !NET5_0_OR_GREATER
 
 // Required for 'init' property accessors (C# 9)
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 namespace System.Runtime.CompilerServices
 {
     internal static class IsExternalInit { }
@@ -21,8 +26,8 @@ namespace System
             _value = fromEnd ? ~value : value;
         }
 
-        public static Index Start => new(0);
-        public static Index End => new(~0);
+        public static Index Start => new Index(0);
+        public static Index End => new Index(~0);
         public int Value => _value < 0 ? ~_value : _value;
         public bool IsFromEnd => _value < 0;
 
@@ -33,7 +38,7 @@ namespace System
             return offset;
         }
 
-        public static implicit operator Index(int value) => new(value);
+        public static implicit operator Index(int value) => new Index(value);
     }
 
     internal readonly struct Range
@@ -47,9 +52,9 @@ namespace System
             End = end;
         }
 
-        public static Range StartAt(Index start) => new(start, Index.End);
-        public static Range EndAt(Index end) => new(Index.Start, end);
-        public static Range All => new(Index.Start, Index.End);
+        public static Range StartAt(Index start) => new Range(start, Index.End);
+        public static Range EndAt(Index end) => new Range(Index.Start, end);
+        public static Range All => new Range(Index.Start, Index.End);
 
         public (int Offset, int Length) GetOffsetAndLength(int length)
         {

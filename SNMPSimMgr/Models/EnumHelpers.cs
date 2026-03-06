@@ -1,25 +1,31 @@
-namespace SNMPSimMgr.Models;
-
-public static class SnmpVersionOptionValues
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+namespace SNMPSimMgr.Models
 {
-    public static SnmpVersionOption[] All => (SnmpVersionOption[])Enum.GetValues(typeof(SnmpVersionOption));
-}
-
-public static class AuthProtocolValues
-{
-    public static AuthProtocol[] All => (AuthProtocol[])Enum.GetValues(typeof(AuthProtocol));
-}
-
-public static class PrivProtocolValues
-{
-    public static PrivProtocol[] All => (PrivProtocol[])Enum.GetValues(typeof(PrivProtocol));
-}
-
-public static class SnmpTypeNames
-{
-    public static string[] All => new[]
+    public static class SnmpVersionOptionValues
     {
-        "Integer32", "OctetString", "ObjectIdentifier", "IpAddress",
-        "Counter32", "Gauge32", "TimeTicks", "Counter64"
-    };
+        public static SnmpVersionOption[] All => (SnmpVersionOption[])Enum.GetValues(typeof(SnmpVersionOption));
+    }
+
+    public static class AuthProtocolValues
+    {
+        public static AuthProtocol[] All => (AuthProtocol[])Enum.GetValues(typeof(AuthProtocol));
+    }
+
+    public static class PrivProtocolValues
+    {
+        public static PrivProtocol[] All => (PrivProtocol[])Enum.GetValues(typeof(PrivProtocol));
+    }
+
+    public static class SnmpTypeNames
+    {
+        public static string[] All => new[]
+        {
+            "Integer32", "OctetString", "ObjectIdentifier", "IpAddress",
+            "Counter32", "Gauge32", "TimeTicks", "Counter64"
+        };
+    }
 }

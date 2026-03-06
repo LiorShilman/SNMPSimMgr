@@ -1,11 +1,17 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 
-namespace SNMPSimMgr.Views;
-
-public partial class MibBrowserView : UserControl
+namespace SNMPSimMgr.Views
 {
-    public MibBrowserView()
+    public partial class MibBrowserView : UserControl
     {
-        InitializeComponent();
+        public MibBrowserView()
+        {
+            InitializeComponent();
+        }
     }
 }
