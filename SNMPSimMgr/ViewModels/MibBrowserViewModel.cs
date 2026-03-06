@@ -26,6 +26,7 @@ namespace SNMPSimMgr.ViewModels
         private List<SnmpRecord>  _allRecords = new List<SnmpRecord>();
         private Dictionary<string, OidTreeNode>  _nodeMap = new Dictionary<string, OidTreeNode>();
         private bool _needsRefresh = true;
+        private CancellationTokenSource _loadCts;
 
         public ObservableCollection<OidTreeNode>  RootNodes { get; } = new ObservableCollection<OidTreeNode>();
         public ObservableCollection<SnmpRecord>  FlatRecords { get; } = new ObservableCollection<SnmpRecord>();
@@ -201,15 +202,36 @@ namespace SNMPSimMgr.ViewModels
             _exportService = exportService;
             _recorder = recorder;
 
-            _deviceList.PropertyChanged += (_, e) =>
+            _deviceList.PropertyChanged += async (_, e) =>
             {
                 if (e.PropertyName == nameof(DeviceListViewModel.SelectedDevice))
-                    _needsRefresh = true;
+                {
+                    // Cancel any in-progress load
+                    _loadCts?.Cancel();
+
+                    // Immediately clear stale data so the UI never shows old/stuck content
+                    RootNodes.Clear();
+                    FlatRecords.Clear();
+                    ClearPanelState();
+                    _allRecords.Clear();
+                    _nodeMap.Clear();
+                    TotalOids = 0;
+                    LoadedDeviceName = string.Empty;
+
+                    // Always reload immediately — no dirty-flag delay
+                    _needsRefresh = false;
+                    await LoadDeviceData();
+                }
             };
         }
 
         public async Task LoadDeviceData()
         {
+            // Cancel any previous load and create a new token
+            _loadCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _loadCts = cts;
+
             var device = _deviceList.SelectedDevice;
             if (device == null)
             {
@@ -231,9 +253,13 @@ namespace SNMPSimMgr.ViewModels
 
             // Load device's MIB files
             await _mibStore.LoadForDeviceAsync(device);
+            if (cts.IsCancellationRequested) return;
+
             MibCount = _mibStore.TotalDefinitions;
 
             _allRecords = await _store.LoadWalkDataAsync(device);
+            if (cts.IsCancellationRequested) return;
+
             LoadedDeviceName = device.Name;
 
             // If no walk data but MIB definitions exist, generate records from MIB OIDs
