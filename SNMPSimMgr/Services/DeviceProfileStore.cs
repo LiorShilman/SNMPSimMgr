@@ -28,6 +28,45 @@ namespace SNMPSimMgr.Services
 
         private string ProfilesPath => Path.Combine(DataRoot, "devices.json");
 
+        /// <summary>
+        /// Resolves a path that may be relative (to DataRoot) or absolute.
+        /// Relative paths like "schemas/ACU.json" or "MIBs/IF-MIB.mib" resolve from Data/.
+        /// </summary>
+        public static string ResolvePath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            if (Path.IsPathRooted(path)) return path;
+            return Path.GetFullPath(Path.Combine(DataRoot, path));
+        }
+
+        /// <summary>
+        /// Converts an absolute path to a relative path (from DataRoot) if it falls under Data/.
+        /// Otherwise returns the original absolute path.
+        /// </summary>
+        public static string ToRelativePath(string absolutePath)
+        {
+            if (string.IsNullOrEmpty(absolutePath)) return absolutePath;
+            if (!Path.IsPathRooted(absolutePath)) return absolutePath; // already relative
+
+            var dataRootFull = DataRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                               + Path.DirectorySeparatorChar;
+            if (absolutePath.StartsWith(dataRootFull, StringComparison.OrdinalIgnoreCase))
+            {
+                return absolutePath.Substring(dataRootFull.Length).Replace('\\', '/');
+            }
+
+            // Check parent of DataRoot (e.g. exe directory) for MIBs folder at app level
+            var appRoot = Path.GetDirectoryName(DataRoot)
+                          .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                          + Path.DirectorySeparatorChar;
+            if (absolutePath.StartsWith(appRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return absolutePath.Substring(appRoot.Length).Replace('\\', '/');
+            }
+
+            return absolutePath; // outside app directory — keep absolute
+        }
+
         private string DeviceFolder(DeviceProfile device)
         {
             var safe = string.Join("_", device.Name.Split(Path.GetInvalidFileNameChars()));
@@ -44,9 +83,15 @@ namespace SNMPSimMgr.Services
             var json = await Task.Run(() => File.ReadAllText(ProfilesPath));
             var profiles = JsonSerializer.Deserialize<List<DeviceProfile>>(json, JsonOptions) ?? new List<DeviceProfile>();
 
-            // Auto-detect schema JSON files for devices without SchemaPath
             foreach (var device in profiles)
             {
+                // Resolve relative paths to absolute for runtime use
+                device.SchemaPath = ResolvePath(device.SchemaPath);
+                device.MibFilePaths = device.MibFilePaths
+                    .Select(p => ResolvePath(p))
+                    .ToList();
+
+                // Auto-detect schema JSON files for devices without SchemaPath
                 if (string.IsNullOrEmpty(device.SchemaPath))
                 {
                     var schemaFile = Path.Combine(SchemasRoot, device.Name + ".json");
@@ -60,7 +105,25 @@ namespace SNMPSimMgr.Services
 
         public async Task SaveProfilesAsync(List<DeviceProfile> profiles)
         {
-            var json = JsonSerializer.Serialize(profiles, JsonOptions);
+            // Convert absolute paths to relative before saving (portable JSON)
+            var toSave = profiles.Select(d => new DeviceProfile
+            {
+                Id = d.Id,
+                Name = d.Name,
+                IpAddress = d.IpAddress,
+                Port = d.Port,
+                Version = d.Version,
+                Community = d.Community,
+                V3Credentials = d.V3Credentials,
+                Status = d.Status,
+                IddFields = d.IddFields,
+                SchemaPath = ToRelativePath(d.SchemaPath),
+                MibFilePaths = d.MibFilePaths
+                    .Select(p => ToRelativePath(p))
+                    .ToList()
+            }).ToList();
+
+            var json = JsonSerializer.Serialize(toSave, JsonOptions);
             await Task.Run(() => File.WriteAllText(ProfilesPath, json));
         }
 

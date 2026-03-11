@@ -3,14 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:SNMPSimMgr.Models"
              xmlns:helpers="clr-namespace:SNMPSimMgr.Helpers">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                  helpers:ScrollHelper.BubbleMouseWheel="True">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto" MinHeight="200"/>
+            <RowDefinition Height="*" MinHeight="200"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -193,20 +191,20 @@
         </Border>
 
         <!-- Controls -->
-        <Border Grid.Row="2" Style="{StaticResource SectionBorder}">
+        <Border Grid.Row="2" Style="{StaticResource SectionBorder}" Padding="10,8">
             <WrapPanel>
                 <Button Content="Start SNMP Walk" Command="{Binding StartWalkCommand}"
-                        Style="{StaticResource SuccessButton}"
+                        Style="{StaticResource SuccessButton}" Margin="0,4,6,4"
                         IsEnabled="{Binding IsWalking, Converter={StaticResource InverseBoolConverter}}"/>
                 <Button Content="Stop Walk" Command="{Binding StopWalkCommand}"
-                        Style="{StaticResource DangerButton}"
+                        Style="{StaticResource DangerButton}" Margin="0,4,6,4"
                         IsEnabled="{Binding IsWalking}"/>
 
-                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,2" Height="28"/>
+                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="10,4" Height="28"/>
 
-                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,2,0"
+                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,4,0"
                            Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
-                <TextBox Text="{Binding TrapListenerPort, UpdateSourceTrigger=PropertyChanged}" Width="55" Margin="0,0,4,0"
+                <TextBox Text="{Binding TrapListenerPort, UpdateSourceTrigger=PropertyChanged}" Width="55" Margin="0,4,8,4"
                          VerticalContentAlignment="Center" FontSize="12"
                          ToolTip="UDP port to listen for incoming traps">
                     <TextBox.Style>
@@ -219,7 +217,7 @@
                         </Style>
                     </TextBox.Style>
                 </TextBox>
-                <Button Command="{Binding ToggleTrapListenerCommand}">
+                <Button Command="{Binding ToggleTrapListenerCommand}" Margin="0,4,6,4">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                             <Setter Property="Content" Value="Start Trap Listener"/>
@@ -231,31 +229,31 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="Save Traps" Command="{Binding SaveCapturedTrapsCommand}"/>
+                <Button Content="Save Traps" Command="{Binding SaveCapturedTrapsCommand}" Margin="0,4,0,4"/>
 
-                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,2" Height="28"/>
+                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="12,4" Height="28"/>
 
                 <!-- Session Recording -->
-                <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,0,0"
+                <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,4,0"
                            Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
-                <TextBox Text="{Binding SessionName, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="4,0,6,0"
+                <TextBox Text="{Binding SessionName, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,4,10,4"
                          VerticalContentAlignment="Center" FontSize="12"
                          ToolTip="Session name (auto-generated if empty)"/>
                 <Button Content="Record" Command="{Binding StartSessionRecordingCommand}"
-                        Style="{StaticResource AccentButton}" Padding="10,6" Margin="0"
+                        Style="{StaticResource AccentButton}" Padding="10,6" Margin="0,4,6,4"
                         IsEnabled="{Binding IsRecordingSession, Converter={StaticResource InverseBoolConverter}}"/>
                 <Button Content="Stop &amp; Save" Command="{Binding StopSessionRecordingCommand}"
-                        Style="{StaticResource DangerButton}" Padding="10,6" Margin="0"
+                        Style="{StaticResource DangerButton}" Padding="10,6" Margin="0,4,6,4"
                         IsEnabled="{Binding IsRecordingSession}"/>
-                <TextBlock Text="Interval:" VerticalAlignment="Center" Margin="8,0,0,0"
+                <TextBlock Text="Interval:" VerticalAlignment="Center" Margin="8,0,4,0"
                            Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
-                <TextBox Text="{Binding SessionInterval}" Width="40" Margin="4,0,0,0"
+                <TextBox Text="{Binding SessionInterval}" Width="40" Margin="0,4,4,4"
                          VerticalContentAlignment="Center"
                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="12"/>
-                <TextBlock Text="s" VerticalAlignment="Center" Margin="2,0,0,0"
+                <TextBlock Text="s" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
                 <Border Background="{StaticResource AccentBlueBrush}" CornerRadius="8"
-                        Padding="8,2" Margin="8,0,0,0" VerticalAlignment="Center"
+                        Padding="8,2" Margin="8,4,0,4" VerticalAlignment="Center"
                         Visibility="{Binding IsRecordingSession, Converter={StaticResource BoolToVisConverter}}">
                     <TextBlock FontSize="11" FontWeight="Bold" Foreground="White">
                         <Run Text="{Binding SessionFrameCount, Mode=OneWay}"/>
@@ -263,15 +261,15 @@
                     </TextBlock>
                 </Border>
 
-                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,2" Height="28"/>
+                <Border Width="1" Background="{StaticResource BorderBrush}" Margin="12,4" Height="28"/>
 
                 <!-- Session List -->
-                <TextBlock Text="Sessions:" VerticalAlignment="Center"
+                <TextBlock Text="Sessions:" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
                 <ComboBox ItemsSource="{Binding SessionList}" SelectedItem="{Binding SelectedSessionName}"
-                          Width="160" Margin="4,0,0,0" FontSize="12"/>
+                          Width="160" Margin="0,4,6,4" FontSize="12"/>
                 <Button Content="Delete" Command="{Binding DeleteSessionCommand}"
-                        Style="{StaticResource DangerButton}" Padding="8,4" Margin="4,0,0,0"
+                        Style="{StaticResource DangerButton}" Padding="8,4" Margin="0,4,0,4"
                         FontSize="11"/>
             </WrapPanel>
         </Border>
@@ -300,10 +298,11 @@
             <!-- Results DataGrid -->
             <Border Grid.Row="1" Grid.Column="0" CornerRadius="6"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <DataGrid ItemsSource="{Binding GetResults}" AutoGenerateColumns="False"
+                <DataGrid x:Name="resultsGrid" ItemsSource="{Binding GetResults}" AutoGenerateColumns="False"
                           IsReadOnly="True"
                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
-                          BorderThickness="0">
+                          BorderThickness="0"
+                          MouseDoubleClick="ResultsGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="OP" Binding="{Binding Operation}" Width="60"/>
                         <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="2*"/>
@@ -358,5 +357,4 @@
             </DataGrid>
         </Expander>
     </Grid>
-    </ScrollViewer>
 </UserControl>

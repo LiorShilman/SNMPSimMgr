@@ -46,15 +46,21 @@
                     <Button Content="Load Demo Data" Command="{Binding LoadDemoDataCommand}"
                             Style="{StaticResource AccentButton}"/>
                     <Button Content="Start All Simulators" Command="{Binding StartDemoSimulationCommand}"
-                            Style="{StaticResource SuccessButton}"/>
+                            Style="{StaticResource SuccessButton}"
+                            IsEnabled="{Binding HasActiveSimulators, Converter={StaticResource InverseBoolConverter}}"/>
                     <Button Content="▶ Start &amp; Inject All" Command="{Binding StartAllAndInjectCommand}"
-                            Style="{StaticResource SuccessButton}" ToolTip="Start all simulators and inject recorded sessions"/>
+                            Style="{StaticResource SuccessButton}" ToolTip="Start all simulators and inject recorded sessions"
+                            IsEnabled="{Binding HasActiveSimulators, Converter={StaticResource InverseBoolConverter}}"/>
+                    <Button Content="■ Stop All" Command="{Binding StopAllSimulatorsCommand}"
+                            Style="{StaticResource DangerButton}" ToolTip="Stop all running simulators"
+                            IsEnabled="{Binding HasActiveSimulators}"/>
 
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,4"/>
 
                     <!-- Full Automation E2E -->
                     <Button Command="{Binding RunFullAutomationCommand}"
                             Style="{StaticResource AccentButton}"
+                            IsEnabled="{Binding HasActiveSimulators, Converter={StaticResource InverseBoolConverter}}"
                             ToolTip="Full end-to-end test: load data → start simulators → inject sessions → run scenario → send traps → batch update">
                         <Button.Content>
                             <StackPanel Orientation="Horizontal">

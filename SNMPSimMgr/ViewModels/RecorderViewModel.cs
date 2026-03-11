@@ -458,6 +458,17 @@ namespace SNMPSimMgr.ViewModels
                     SessionFrameCount = _currentSession.Frames.Count;
                     OidCount = results.Count;
 
+                    // First frame + no walk data → auto-save as walk baseline
+                    if (SessionFrameCount == 1)
+                    {
+                        var existingWalk = await _store.LoadWalkDataAsync(device);
+                        if (existingWalk.Count == 0)
+                        {
+                            await _store.SaveWalkDataAsync(device, results);
+                            LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Walk data auto-saved from first frame ({results.Count} OIDs)");
+                        }
+                    }
+
                     // Broadcast WALK results to Angular clients for live panel update
                     var updatedValues = results.ToDictionary(r => r.Oid, r => r.Value);
                     SnmpHub.BroadcastMibUpdate(device.Id, updatedValues);

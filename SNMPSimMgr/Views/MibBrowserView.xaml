@@ -4,13 +4,11 @@
              xmlns:vm="clr-namespace:SNMPSimMgr.ViewModels"
              xmlns:views="clr-namespace:SNMPSimMgr.Views"
              xmlns:helpers="clr-namespace:SNMPSimMgr.Helpers">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                  helpers:ScrollHelper.BubbleMouseWheel="True">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto" MinHeight="250"/>
+            <RowDefinition Height="*" MinHeight="250"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -165,13 +163,18 @@
             <Grid>
                 <!-- OID Tree -->
                 <TreeView x:Name="mibTree" ItemsSource="{Binding RootNodes}"
-                          BorderThickness="0"
-                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          BorderThickness="0" Background="#0E1118"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Recycling"
                           Visibility="{Binding ShowTree, Converter={StaticResource BoolToVisConverter}}">
                     <TreeView.ItemContainerStyle>
-                        <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                        <Style TargetType="TreeViewItem">
                             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                            <Setter Property="Padding" Value="2,1"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter Property="VirtualizingStackPanel.IsVirtualizing" Value="True"/>
+                            <Setter Property="VirtualizingStackPanel.VirtualizationMode" Value="Recycling"/>
                             <Setter Property="Tag"
                                     Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=TreeView}}"/>
                             <Setter Property="ContextMenu">
@@ -179,7 +182,6 @@
                                     <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
                                                      RelativeSource={RelativeSource Self}}"
                                                  MinWidth="200">
-                                        <!-- GET: always visible -->
                                         <MenuItem Command="{Binding PlacementTarget.Tag.ContextGetCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding}">
@@ -191,7 +193,6 @@
                                                 </StackPanel>
                                             </MenuItem.Header>
                                         </MenuItem>
-                                        <!-- SET: only for writable OIDs -->
                                         <MenuItem Command="{Binding PlacementTarget.Tag.ContextSetCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding}"
@@ -205,7 +206,6 @@
                                                 </StackPanel>
                                             </MenuItem.Header>
                                         </MenuItem>
-                                        <!-- WALK: only for branch nodes -->
                                         <MenuItem Command="{Binding PlacementTarget.Tag.ContextWalkCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding}"
@@ -221,7 +221,6 @@
                                         </MenuItem>
                                         <Separator Visibility="{Binding HasChildren,
                                                        Converter={StaticResource BoolToVisConverter}}"/>
-                                        <!-- Expand/Collapse: only for branch nodes -->
                                         <MenuItem Command="{Binding PlacementTarget.Tag.ExpandAllChildrenCommand,
                                                       RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding}"
@@ -245,45 +244,150 @@
                                     </ContextMenu>
                                 </Setter.Value>
                             </Setter>
+                            <!-- Custom template: fixed-column layout with manual indent -->
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type TreeViewItem}">
+                                        <StackPanel>
+                                            <Border x:Name="Bd" Background="#111825"
+                                                    Padding="3,2" SnapsToDevicePixels="True"
+                                                    CornerRadius="3" Margin="0,1,0,0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="480"/>
+                                                        <ColumnDefinition Width="320"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <!-- Col 0: indent + toggle + icon + name -->
+                                                    <DockPanel Grid.Column="0" VerticalAlignment="Center">
+                                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                                            <Rectangle Fill="Transparent"
+                                                                       Width="{Binding Depth, Converter={StaticResource DepthToIndentConverter}}"/>
+                                                            <ToggleButton x:Name="Expander"
+                                                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                          ClickMode="Press" Width="16" Focusable="False">
+                                                                <ToggleButton.Style>
+                                                                    <Style TargetType="ToggleButton">
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="ToggleButton">
+                                                                                    <Border Background="Transparent" Width="16" Height="16">
+                                                                                        <Path x:Name="arrow" Fill="{StaticResource TextSecondaryBrush}"
+                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                              Data="M 0,0 L 5,4 L 0,8 Z" Opacity="0.6">
+                                                                                            <Path.RenderTransform>
+                                                                                                <RotateTransform Angle="0" CenterX="2.5" CenterY="4"/>
+                                                                                            </Path.RenderTransform>
+                                                                                        </Path>
+                                                                                    </Border>
+                                                                                    <ControlTemplate.Triggers>
+                                                                                        <Trigger Property="IsChecked" Value="True">
+                                                                                            <Setter TargetName="arrow" Property="RenderTransform">
+                                                                                                <Setter.Value>
+                                                                                                    <RotateTransform Angle="90" CenterX="2.5" CenterY="4"/>
+                                                                                                </Setter.Value>
+                                                                                            </Setter>
+                                                                                            <Setter TargetName="arrow" Property="Opacity" Value="0.9"/>
+                                                                                        </Trigger>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter TargetName="arrow" Property="Fill"
+                                                                                                    Value="{StaticResource AccentBlueBrush}"/>
+                                                                                        </Trigger>
+                                                                                    </ControlTemplate.Triggers>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </ToggleButton.Style>
+                                                            </ToggleButton>
+                                                        </StackPanel>
+                                                        <!-- Icon + Name from DataTemplate -->
+                                                        <ContentPresenter x:Name="PART_Header"
+                                                                          ContentSource="Header"
+                                                                          VerticalAlignment="Center"/>
+                                                    </DockPanel>
+                                                    <!-- Col 1: OID (fixed position) -->
+                                                    <TextBlock Grid.Column="1" Text="{Binding Oid}" FontSize="10"
+                                                               FontFamily="Cascadia Code,Consolas,Courier New"
+                                                               Foreground="#6B7394"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" Margin="6,0,0,0"/>
+                                                    <!-- Col 2: Value (fixed position) -->
+                                                    <TextBlock Grid.Column="2" Text="{Binding ValueDisplay}"
+                                                               FontFamily="Cascadia Code,Consolas,Courier New"
+                                                               FontSize="11" Foreground="#7CB8FF"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" Margin="10,0,6,0"
+                                                               Visibility="{Binding IsLeaf, Converter={StaticResource BoolToVisConverter}}"/>
+                                                </Grid>
+                                            </Border>
+                                            <ItemsPresenter x:Name="ItemsHost" Visibility="Collapsed"/>
+                                        </StackPanel>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsExpanded" Value="True">
+                                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="HasItems" Value="False">
+                                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#1A2844"/>
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2A4070"/>
+                                                <Setter TargetName="Bd" Property="BorderThickness" Value="1"/>
+                                            </Trigger>
+                                            <!-- No hover effect — IsMouseOver bubbles to parents in TreeView -->
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </TreeView.ItemContainerStyle>
+                    <!-- DataTemplate: only icon + name (OID & Value are in ControlTemplate at fixed positions) -->
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                            <TextBlock TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" FontSize="12">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
+                            <StackPanel Orientation="Horizontal" Margin="0,1,0,1">
+                                <!-- Node type indicator -->
+                                <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Width="14"
+                                           TextAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#x1F4C1;"/>
+                                            <Setter Property="FontSize" Value="11"/>
+                                            <Setter Property="Opacity" Value="0.6"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLeaf}" Value="True">
+                                                    <Setter Property="Text" Value="&#x25CF;"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                    <Setter Property="Opacity" Value="0.8"/>
+                                                    <Setter Property="FontSize" Value="8"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding HasChildren}" Value="True">
+                                                    <Setter Property="Text" Value="&#x1F4C2;"/>
+                                                    <Setter Property="Opacity" Value="0.7"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <!-- Name -->
-                                <Run FontWeight="SemiBold">
-                                    <Run.Style>
-                                        <Style TargetType="Run">
+                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                            <Setter Property="Text" Value="{Binding DisplayName, Mode=OneWay}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsLeaf}" Value="True">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Run.Style>
-                                </Run>
-                                <!-- OID -->
-                                <Run Text="  " FontSize="2"/>
-                                <Run Text="{Binding Oid, Mode=OneWay}" FontSize="10"
-                                     FontFamily="Cascadia Code,Consolas,Courier New"
-                                     Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <!-- = Value (leaf only, via binding) -->
-                                <Run Text="{Binding ValueDisplay, Mode=OneWay}" FontSize="11"
-                                     FontFamily="Cascadia Code,Consolas,Courier New"
-                                     Foreground="{StaticResource AccentBlueBrush}"/>
-                            </TextBlock>
+                                    </TextBlock.Style>
+                                    <Run Text="{Binding DisplayName, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
@@ -291,7 +395,12 @@
                 <!-- Flat DataGrid view (visible when NOT tree AND NOT panel) -->
                 <DataGrid ItemsSource="{Binding FlatRecords}" AutoGenerateColumns="False"
                           IsReadOnly="True" BorderThickness="0"
-                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11">
+                          Background="#0E1118" RowBackground="#111825" AlternatingRowBackground="#0E1118"
+                          EnableRowVirtualization="True"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Recycling"
+                          FontFamily="Cascadia Code,Consolas,Courier New" FontSize="11"
+                          HorizontalGridLinesBrush="#1A2030" GridLinesVisibility="Horizontal">
                     <DataGrid.Style>
                         <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -307,10 +416,52 @@
                         </Style>
                     </DataGrid.Style>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="OID" Binding="{Binding Oid}" Width="2*"/>
-                        <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="TYPE" Binding="{Binding ValueType}" Width="100"/>
-                        <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="3*"/>
+                        <DataGridTextColumn Header="OID" Width="2*">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="Oid"/>
+                            </DataGridTextColumn.Binding>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#6B7394"/>
+                                    <Setter Property="Padding" Value="6,4"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="NAME" Width="2*">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="Name"/>
+                            </DataGridTextColumn.Binding>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Padding" Value="6,4"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="TYPE" Width="130">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="#182030" CornerRadius="3" Padding="5,2" Margin="2,1"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding ValueType}" FontSize="10"
+                                                   Foreground="{Binding ValueType, Converter={StaticResource TypeToColorConverter}}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="VALUE" Width="3*">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="Value"/>
+                            </DataGridTextColumn.Binding>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#7CB8FF"/>
+                                    <Setter Property="Padding" Value="6,4"/>
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
 
@@ -390,5 +541,4 @@
             </Grid>
         </Border>
     </Grid>
-    </ScrollViewer>
 </UserControl>

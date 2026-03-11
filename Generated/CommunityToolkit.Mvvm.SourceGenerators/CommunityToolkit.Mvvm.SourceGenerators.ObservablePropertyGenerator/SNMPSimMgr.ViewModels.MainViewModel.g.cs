@@ -69,6 +69,37 @@ namespace SNMPSimMgr.ViewModels
             }
         }
 
+        /// <inheritdoc cref="_hasActiveSimulators"/>
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+        public bool HasActiveSimulators
+        {
+            get => _hasActiveSimulators;
+            set
+            {
+                if (!global::System.Collections.Generic.EqualityComparer<bool>.Default.Equals(_hasActiveSimulators, value))
+                {
+                    OnHasActiveSimulatorsChanging(value);
+                    OnHasActiveSimulatorsChanging(default, value);
+                    OnPropertyChanging(global::CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasActiveSimulators);
+                    _hasActiveSimulators = value;
+                    OnHasActiveSimulatorsChanged(value);
+                    OnHasActiveSimulatorsChanged(default, value);
+                    OnPropertyChanged(global::CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasActiveSimulators);
+                }
+            }
+        }
+
+        /// <summary>Executes the logic for when <see cref="HasActiveSimulators"/> is changing.</summary>
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        partial void OnHasActiveSimulatorsChanging(bool value);
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        partial void OnHasActiveSimulatorsChanging(bool oldValue, bool newValue);
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        partial void OnHasActiveSimulatorsChanged(bool value);
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        partial void OnHasActiveSimulatorsChanged(bool oldValue, bool newValue);
+
         /// <summary>Executes the logic for when <see cref="StatusText"/> is changing.</summary>
         /// <param name="value">The new property value being set.</param>
         /// <remarks>This method is invoked right before the value of <see cref="StatusText"/> is changed.</remarks>

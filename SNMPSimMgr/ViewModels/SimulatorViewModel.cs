@@ -309,7 +309,9 @@ namespace SNMPSimMgr.ViewModels
 
             sim.InjectionFrameApplied += (frameNum, records) =>
             {
-                TrafficReceived.Invoke(device.Name, $"INJ#{frameNum}", $"{records.Count} OIDs", $"Frame {frameNum}", "injection");
+                // Broadcast each OID individually so MIB Browser + Angular update in realtime
+                foreach (var r in records)
+                    TrafficReceived.Invoke(device.Name, "SET", r.Oid, r.Value, "injection");
 
                 App.Current.Dispatcher.BeginInvoke((Action)(() =>
                 {

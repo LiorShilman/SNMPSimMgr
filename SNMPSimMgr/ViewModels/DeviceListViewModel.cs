@@ -22,7 +22,10 @@ namespace SNMPSimMgr.ViewModels
         [ObservableProperty]
         private DeviceProfile _selectedDevice;
 
-        // New device form fields
+        /// <summary>True when editing an existing device (form populated from selection).</summary>
+        [ObservableProperty] private bool _isEditing;
+
+        // New/Edit device form fields
         [ObservableProperty] private string _newName = string.Empty;
         [ObservableProperty] private string _newIp = string.Empty;
         [ObservableProperty] private int _newPort = 161;
@@ -37,6 +40,29 @@ namespace SNMPSimMgr.ViewModels
         public DeviceListViewModel(DeviceProfileStore store)
         {
             _store = store;
+        }
+
+        partial void OnSelectedDeviceChanged(DeviceProfile value)
+        {
+            if (value != null)
+            {
+                // Populate form with selected device's data for editing
+                NewName = value.Name;
+                NewIp = value.IpAddress;
+                NewPort = value.Port;
+                NewVersion = value.Version;
+                NewCommunity = value.Community;
+                NewV3User = value.V3Credentials?.Username ?? "";
+                NewV3AuthPass = value.V3Credentials?.AuthPassword ?? "";
+                NewV3PrivPass = value.V3Credentials?.PrivPassword ?? "";
+                NewV3AuthProto = value.V3Credentials?.AuthProtocol ?? AuthProtocol.MD5;
+                NewV3PrivProto = value.V3Credentials?.PrivProtocol ?? PrivProtocol.DES;
+                IsEditing = true;
+            }
+            else
+            {
+                IsEditing = false;
+            }
         }
 
         public async Task LoadAsync()
@@ -76,10 +102,70 @@ namespace SNMPSimMgr.ViewModels
             await SaveAsync();
 
             // Clear form
+            IsEditing = false;
+            ClearForm();
+        }
+
+        [RelayCommand]
+        private async Task SaveEdit()
+        {
+            if (SelectedDevice == null || !IsEditing) return;
+            if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewIp)) return;
+
+            SelectedDevice.Name = NewName;
+            SelectedDevice.IpAddress = NewIp;
+            SelectedDevice.Port = NewPort;
+            SelectedDevice.Version = NewVersion;
+            SelectedDevice.Community = NewCommunity;
+
+            if (NewVersion == SnmpVersionOption.V3)
+            {
+                SelectedDevice.V3Credentials = new SnmpV3Credentials()
+                {
+                    Username = NewV3User,
+                    AuthProtocol = NewV3AuthProto,
+                    AuthPassword = NewV3AuthPass,
+                    PrivProtocol = NewV3PrivProto,
+                    PrivPassword = NewV3PrivPass,
+                };
+            }
+            else
+            {
+                SelectedDevice.V3Credentials = null;
+            }
+
+            await SaveAsync();
+
+            // Force DataGrid refresh by replacing item in collection
+            var idx = Devices.IndexOf(SelectedDevice);
+            if (idx >= 0)
+            {
+                var device = SelectedDevice;
+                Devices[idx] = device;
+                SelectedDevice = device;
+            }
+        }
+
+        [RelayCommand]
+        private void CancelEdit()
+        {
+            SelectedDevice = null;
+            IsEditing = false;
+            ClearForm();
+        }
+
+        private void ClearForm()
+        {
             NewName = string.Empty;
             NewIp = string.Empty;
             NewPort = 161;
+            NewVersion = SnmpVersionOption.V2c;
             NewCommunity = "public";
+            NewV3User = string.Empty;
+            NewV3AuthPass = string.Empty;
+            NewV3PrivPass = string.Empty;
+            NewV3AuthProto = AuthProtocol.MD5;
+            NewV3PrivProto = PrivProtocol.DES;
         }
 
         [RelayCommand]
@@ -88,6 +174,8 @@ namespace SNMPSimMgr.ViewModels
             if (SelectedDevice == null) return;
             Devices.Remove(SelectedDevice);
             SelectedDevice = null;
+            IsEditing = false;
+            ClearForm();
             await SaveAsync();
         }
 

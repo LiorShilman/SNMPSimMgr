@@ -694,5 +694,22 @@ namespace SNMPSimMgr.ViewModels
         /// <remarks>This method is invoked right after the value of <see cref="IsSelectedDeviceSimulating"/> is changed.</remarks>
         [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
         partial void OnIsSelectedDeviceSimulatingChanged(bool oldValue, bool newValue);
+
+        /// <inheritdoc cref="_isTrafficPaused"/>
+        [global::System.CodeDom.Compiler.GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+        [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+        public bool IsTrafficPaused
+        {
+            get => _isTrafficPaused;
+            set
+            {
+                if (!global::System.Collections.Generic.EqualityComparer<bool>.Default.Equals(_isTrafficPaused, value))
+                {
+                    OnPropertyChanging(global::CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsTrafficPaused);
+                    _isTrafficPaused = value;
+                    OnPropertyChanged(global::CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsTrafficPaused);
+                }
+            }
+        }
     }
 }

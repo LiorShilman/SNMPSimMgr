@@ -82,6 +82,33 @@ namespace SNMPSimMgr.Services
             return await Task.Run(() => WalkDevice(device, rootOid, ct), ct);
         }
 
+        /// <summary>
+        /// Walk multiple subtrees and return combined results.
+        /// Each OID in the list is walked as a subtree (supports tables with not-accessible parent OIDs).
+        /// Much faster than a full walk when you only need specific branches.
+        /// </summary>
+        public async Task<List<SnmpRecord>> WalkSubtreesAsync(
+            DeviceProfile device,
+            IEnumerable<string> rootOids,
+            CancellationToken ct = default)
+        {
+            var allResults = new List<SnmpRecord>();
+            var oidList = rootOids.ToList();
+
+            Log($"Selective walk on {device.Name}: {oidList.Count} subtree(s)");
+
+            for (int i = 0; i < oidList.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var results = await Task.Run(() => WalkDevice(device, oidList[i], ct), ct);
+                allResults.AddRange(results);
+                Log($"  Subtree {i + 1}/{oidList.Count} ({oidList[i]}): {results.Count} OIDs");
+            }
+
+            Log($"Selective walk complete: {allResults.Count} total OIDs from {oidList.Count} subtree(s)");
+            return allResults;
+        }
+
         private List<SnmpRecord> WalkDevice(DeviceProfile device, string rootOid, CancellationToken ct)
         {
             var results = new List<SnmpRecord>();

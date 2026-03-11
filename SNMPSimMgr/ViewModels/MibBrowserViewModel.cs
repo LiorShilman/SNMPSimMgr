@@ -260,6 +260,10 @@ namespace SNMPSimMgr.ViewModels
             _allRecords = await _store.LoadWalkDataAsync(device);
             if (cts.IsCancellationRequested) return;
 
+            // Normalize whitespace in values (MIB descriptions often contain newlines)
+            foreach (var r in _allRecords)
+                if (r.Value != null) r.Value = NormalizeWhitespace(r.Value);
+
             LoadedDeviceName = device.Name;
 
             // If no walk data but MIB definitions exist, generate records from MIB OIDs
@@ -293,19 +297,68 @@ namespace SNMPSimMgr.ViewModels
             if (string.IsNullOrEmpty(LoadedDeviceName) || !deviceName.Equals(LoadedDeviceName, StringComparison.OrdinalIgnoreCase))
                 return;
 
-            // Try exact OID match
+            // ── 1. Tree View: update node directly (ObservableObject → UI updates) ──
             if (_nodeMap.TryGetValue(oid, out var node) && node.IsLeaf)
             {
                 node.Value = value;
-                return;
             }
-
-            // Collapsed scalar: OID "x.y.z.0" → tree node "x.y.z"
-            if (oid.EndsWith(".0"))
+            else if (oid.EndsWith(".0"))
             {
                 var parentOid = oid[..^2];
                 if (_nodeMap.TryGetValue(parentOid, out node) && node.IsLeaf)
                     node.Value = value;
+            }
+
+            // ── 2. Flat View: update matching record in _allRecords + FlatRecords ──
+            var flatRecord = _allRecords.FirstOrDefault(r => r.Oid == oid);
+            if (flatRecord != null)
+                flatRecord.Value = value;
+
+            var visibleRecord = FlatRecords.FirstOrDefault(r => r.Oid == oid);
+            if (visibleRecord != null)
+            {
+                var idx = FlatRecords.IndexOf(visibleRecord);
+                visibleRecord.Value = value;
+                // Force ObservableCollection to notify UI by replace-in-place
+                FlatRecords[idx] = visibleRecord;
+            }
+
+            // ── 3. Panel View: update field CurrentValue + re-classify ──
+            if (PanelSchema != null)
+            {
+                bool panelUpdated = false;
+                var matchOid = oid.EndsWith(".0") ? oid[..^2] : oid;
+                foreach (var module in PanelSchema.Modules)
+                {
+                    // Scalar fields
+                    var field = module.Scalars.FirstOrDefault(f => f.Oid == oid || f.Oid == matchOid);
+                    if (field != null)
+                    {
+                        field.CurrentValue = value;
+                        panelUpdated = true;
+                    }
+
+                    // Table cells
+                    foreach (var table in module.Tables)
+                    {
+                        foreach (var col in table.Columns)
+                        {
+                            if (oid.StartsWith(col.Oid + "."))
+                            {
+                                var rowIdx = oid.Substring(col.Oid.Length + 1);
+                                var row = table.Rows.FirstOrDefault(r => r.Index == rowIdx);
+                                if (row != null && row.Values.ContainsKey(col.Oid))
+                                {
+                                    row.Values[col.Oid].Value = value;
+                                    panelUpdated = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (panelUpdated)
+                    ClassifyFields(PanelSchema);
             }
         }
 
@@ -326,11 +379,14 @@ namespace SNMPSimMgr.ViewModels
                 {
                     Oid = d.Oid,
                     Name = d.Name,
-                    Value = d.Description ?? "—",
+                    Value = NormalizeWhitespace(d.Description ?? "—"),
                     ValueType = d.Access ?? d.BaseType ?? "MIB"
                 })
                 .ToList();
         }
+
+        private static string NormalizeWhitespace(string s) =>
+            s == null ? null : System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
 
         partial void OnSearchTextChanged(string value)
         {
@@ -348,9 +404,10 @@ namespace SNMPSimMgr.ViewModels
 
         private void ApplyFilter()
         {
-            FlatRecords.Clear();
             var filter = SearchText.Trim();
 
+            // Build filtered list in memory first (avoid 15k individual Add notifications)
+            var filtered = new List<SnmpRecord>();
             foreach (var record in _allRecords)
             {
                 // Resolve MIB name for flat view display
@@ -368,9 +425,14 @@ namespace SNMPSimMgr.ViewModels
                     (record.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 == true) ||
                     ResolveName(record.Oid, "").IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    FlatRecords.Add(record);
+                    filtered.Add(record);
                 }
             }
+
+            // Replace collection in one shot — single UI notification
+            FlatRecords.Clear();
+            foreach (var r in filtered)
+                FlatRecords.Add(r);
 
             // Also highlight matching nodes in tree
             if (!string.IsNullOrEmpty(filter))
@@ -462,9 +524,17 @@ namespace SNMPSimMgr.ViewModels
             foreach (var root in RootNodes)
                 RebuildNodeMap(root);
 
-            // Expand all nodes by default
+            // Assign depth values for aligned tree rendering
             foreach (var root in RootNodes)
-                SetExpandedRecursive(root, true);
+                SetDepths(root, 0);
+
+            // Expand only top-level nodes (not entire tree — avoids UI freeze on large MIBs)
+            foreach (var root in RootNodes)
+            {
+                root.IsExpanded = true;
+                foreach (var child in root.Children)
+                    child.IsExpanded = true;
+            }
         }
 
         private void RebuildNodeMap(OidTreeNode node)
@@ -472,6 +542,13 @@ namespace SNMPSimMgr.ViewModels
             _nodeMap[node.Oid] = node;
             foreach (var child in node.Children)
                 RebuildNodeMap(child);
+        }
+
+        private void SetDepths(OidTreeNode node, int depth)
+        {
+            node.Depth = depth;
+            foreach (var child in node.Children)
+                SetDepths(child, depth + 1);
         }
 
         private void CollapseChains(OidTreeNode node)
@@ -821,6 +898,386 @@ namespace SNMPSimMgr.ViewModels
             {
                 PanelStatus = $"SET error: {ex.Message}";
             }
+        }
+
+        [RelayCommand]
+        private async Task PanelGetField(MibFieldSchema field)
+        {
+            var device = _deviceList.SelectedDevice;
+            if (device == null || field == null) return;
+            var target = SnmpRecorderService.ResolveTarget(device);
+
+            try
+            {
+                var oid = field.Oid.EndsWith(".0") ? field.Oid : field.Oid + ".0";
+                PanelStatus = $"GET {FriendlyName(field.Name)}...";
+
+                var result = await _recorder.GetSingleAsync(target, oid);
+                if (result != null)
+                {
+                    field.CurrentValue = result.Value;
+                    field.CurrentValueType = result.ValueType;
+                    // Re-classify to update UI
+                    if (PanelSchema != null)
+                        ClassifyFields(PanelSchema);
+                    PanelStatus = $"GET {FriendlyName(field.Name)} = {result.Value}";
+                }
+                else
+                {
+                    PanelStatus = $"GET {field.Name} — No response";
+                }
+            }
+            catch (Exception ex)
+            {
+                PanelStatus = $"GET error: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task PanelSetFieldDialog(MibFieldSchema field)
+        {
+            var device = _deviceList.SelectedDevice;
+            if (device == null || field == null) return;
+            var target = SnmpRecorderService.ResolveTarget(device);
+
+            var oid = field.Oid.EndsWith(".0") ? field.Oid : field.Oid + ".0";
+
+            // Live GET to fetch current value
+            PanelStatus = $"Reading {FriendlyName(field.Name)}...";
+            SnmpRecord liveResult = null;
+            try
+            {
+                var getTask = _recorder.GetSingleAsync(target, oid);
+                if (await Task.WhenAny(getTask, Task.Delay(3000)) == getTask)
+                    liveResult = await getTask;
+            }
+            catch { }
+
+            var currentValue = liveResult?.Value ?? field.CurrentValue ?? "";
+            var valueType = ResolveSnmpType(field, liveResult?.ValueType);
+
+            // Enum hint
+            string enumHint = null;
+            if (field.Options != null && field.Options.Count > 0)
+            {
+                var pairs = field.Options.Select(o => $"{o.Value} = {o.Label}");
+                enumHint = string.Join(",  ", pairs);
+            }
+
+            var newValue = ShowSetDialog($"SET {FriendlyName(field.Name)}", oid, valueType, currentValue, enumHint);
+            if (newValue == null) return;
+
+            try
+            {
+                PanelStatus = $"Setting {FriendlyName(field.Name)}...";
+                var success = await _recorder.SetAsync(target, oid, newValue, valueType);
+                if (success)
+                {
+                    field.CurrentValue = newValue;
+                    if (PanelSchema != null) ClassifyFields(PanelSchema);
+                    PanelStatus = $"Set {FriendlyName(field.Name)} = {newValue}";
+                }
+                else
+                {
+                    PanelStatus = $"SET failed for {field.Name}";
+                }
+            }
+            catch (Exception ex)
+            {
+                PanelStatus = $"SET error: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// SET a specific table cell. Takes a tuple of (MibTableSchema table, string columnOid, string rowIndex).
+        /// </summary>
+        [RelayCommand]
+        private async Task PanelTableSetCell(object param)
+        {
+            if (!(param is object[] args) || args.Length < 3) return;
+            var table = args[0] as MibTableSchema;
+            var columnOid = args[1] as string;
+            var rowIndex = args[2] as string;
+            if (table == null || string.IsNullOrEmpty(columnOid) || string.IsNullOrEmpty(rowIndex)) return;
+
+            var device = _deviceList.SelectedDevice;
+            if (device == null) return;
+            var target = SnmpRecorderService.ResolveTarget(device);
+
+            var fullOid = $"{columnOid}.{rowIndex}";
+            var column = table.Columns.FirstOrDefault(c => c.Oid == columnOid);
+            var columnName = column != null ? FriendlyName(column.Name) : columnOid;
+            var row = table.Rows.FirstOrDefault(r => r.Index == rowIndex);
+            var rowLabel = row?.Label ?? rowIndex;
+
+            // Live GET
+            PanelStatus = $"Reading {columnName} [{rowLabel}]...";
+            SnmpRecord liveResult = null;
+            try
+            {
+                var getTask = _recorder.GetSingleAsync(target, fullOid);
+                if (await Task.WhenAny(getTask, Task.Delay(3000)) == getTask)
+                    liveResult = await getTask;
+            }
+            catch { }
+
+            var currentValue = liveResult?.Value ?? "";
+            if (string.IsNullOrEmpty(currentValue) && row != null)
+            {
+                if (row.Values.TryGetValue(columnOid, out var cell))
+                    currentValue = cell.Value;
+            }
+            var valueType = liveResult?.ValueType ?? column?.CurrentValueType ?? column?.BaseType ?? "OctetString";
+            if (!string.IsNullOrEmpty(valueType))
+                valueType = MapMibSyntaxToSnmpType(valueType);
+
+            // Enum hint
+            string enumHint = null;
+            if (column?.Options != null && column.Options.Count > 0)
+            {
+                var pairs = column.Options.Select(o => $"{o.Value} = {o.Label}");
+                enumHint = string.Join(",  ", pairs);
+            }
+
+            var title = $"SET {columnName} — Row: {rowLabel}";
+            var newValue = ShowSetDialog(title, fullOid, valueType, currentValue, enumHint);
+            if (newValue == null) return;
+
+            try
+            {
+                PanelStatus = $"Setting {columnName} [{rowLabel}]...";
+                var success = await _recorder.SetAsync(target, fullOid, newValue, valueType);
+                if (success)
+                {
+                    // Update local cell value
+                    if (row != null && row.Values.ContainsKey(columnOid))
+                        row.Values[columnOid] = new MibCellValue { Value = newValue, Type = valueType };
+                    PanelStatus = $"Set {columnName} [{rowLabel}] = {newValue}";
+                    // Rebuild panel tables to reflect change
+                    if (PanelSchema != null) ClassifyFields(PanelSchema);
+                }
+                else
+                {
+                    PanelStatus = $"SET failed for {columnName} [{rowLabel}]";
+                }
+            }
+            catch (Exception ex)
+            {
+                PanelStatus = $"SET error: {ex.Message}";
+            }
+        }
+
+        /// <summary>Resolve SNMP type from a MibFieldSchema (for panel fields that aren't tree nodes).</summary>
+        private string ResolveSnmpType(MibFieldSchema field, string liveValueType = null)
+        {
+            if (!string.IsNullOrEmpty(liveValueType) && liveValueType != "Null" &&
+                Array.IndexOf(SnmpValueTypes, liveValueType) >= 0)
+                return liveValueType;
+            if (!string.IsNullOrEmpty(field.CurrentValueType) && field.CurrentValueType != "Null" &&
+                Array.IndexOf(SnmpValueTypes, field.CurrentValueType) >= 0)
+                return field.CurrentValueType;
+            if (!string.IsNullOrEmpty(field.BaseType))
+                return MapMibSyntaxToSnmpType(field.BaseType);
+            return "OctetString";
+        }
+
+        /// <summary>
+        /// Show a modal SET dialog. Returns (newValue, selectedRowIndex) or (null, null) if cancelled.
+        /// When instances is provided, a row selector ComboBox is shown at the top.
+        /// </summary>
+        private (string Value, string RowIndex) ShowSetDialogWithRows(
+            string title, string baseOid, string valueType, string currentValue, string enumHint,
+            List<(string Index, string Label, string Value)> instances)
+        {
+            bool hasRows = instances != null && instances.Count > 0;
+            int height = 240;
+            if (enumHint != null) height += 40;
+            if (hasRows) height += 60;
+
+            var dialog = new System.Windows.Window
+            {
+                Title = title,
+                Width = 500, Height = height,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                Owner = System.Windows.Application.Current.MainWindow,
+                Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A1E2E")),
+                ResizeMode = System.Windows.ResizeMode.NoResize
+            };
+
+            var stack = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
+
+            // OID display (updated dynamically when row changes)
+            var lblOid = new System.Windows.Controls.TextBlock
+            {
+                Text = $"OID: {baseOid}",
+                Foreground = System.Windows.Media.Brushes.LightGray,
+                FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
+                FontSize = 11, Margin = new System.Windows.Thickness(0, 0, 0, 8)
+            };
+            stack.Children.Add(lblOid);
+
+            // Row selector (for table columns)
+            System.Windows.Controls.ComboBox cboRow = null;
+            var lblCurrentValue = new System.Windows.Controls.TextBlock
+            {
+                Text = string.IsNullOrEmpty(currentValue) ? "(no response)" : currentValue,
+                Foreground = System.Windows.Media.Brushes.LightGreen,
+                FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
+                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                TextTrimming = System.Windows.TextTrimming.CharacterEllipsis
+            };
+            System.Windows.Controls.TextBox txtValue = null;
+
+            if (hasRows)
+            {
+                var rowPanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
+                var lblRow = new System.Windows.Controls.TextBlock
+                {
+                    Text = "Row:", Foreground = System.Windows.Media.Brushes.White,
+                    FontSize = 12, FontWeight = System.Windows.FontWeights.SemiBold,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                    Margin = new System.Windows.Thickness(0, 0, 8, 0)
+                };
+                System.Windows.Controls.DockPanel.SetDock(lblRow, System.Windows.Controls.Dock.Left);
+
+                cboRow = new System.Windows.Controls.ComboBox
+                {
+                    FontSize = 12, MinWidth = 300,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center
+                };
+                foreach (var inst in instances)
+                {
+                    cboRow.Items.Add(new System.Windows.Controls.ComboBoxItem
+                    {
+                        Content = inst.Label != inst.Index ? $"{inst.Label}  (index: {inst.Index})" : $"Row {inst.Index}",
+                        Tag = inst
+                    });
+                }
+                cboRow.SelectedIndex = 0;
+
+                // When row changes — update OID, current value, and pre-fill new value
+                cboRow.SelectionChanged += (s, e) =>
+                {
+                    if (cboRow.SelectedItem is System.Windows.Controls.ComboBoxItem item &&
+                        item.Tag is ValueTuple<string, string, string> sel)
+                    {
+                        lblOid.Text = $"OID: {baseOid}.{sel.Item1}";
+                        lblCurrentValue.Text = string.IsNullOrEmpty(sel.Item3) ? "(no response)" : sel.Item3;
+                        if (txtValue != null) txtValue.Text = sel.Item3 ?? "";
+                    }
+                };
+
+                rowPanel.Children.Add(lblRow);
+                rowPanel.Children.Add(cboRow);
+                stack.Children.Add(rowPanel);
+
+                // Set initial values from first instance
+                var first = instances[0];
+                lblOid.Text = $"OID: {baseOid}.{first.Index}";
+                currentValue = first.Value;
+            }
+
+            // Type
+            var typePanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
+            var lblType = new System.Windows.Controls.TextBlock
+            {
+                Text = "Type:", Foreground = System.Windows.Media.Brushes.Gray,
+                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0)
+            };
+            System.Windows.Controls.DockPanel.SetDock(lblType, System.Windows.Controls.Dock.Left);
+            typePanel.Children.Add(lblType);
+            typePanel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = valueType,
+                Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4FC3F7")),
+                FontSize = 12, FontWeight = System.Windows.FontWeights.SemiBold,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center
+            });
+            stack.Children.Add(typePanel);
+
+            // Current value
+            var currentPanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
+            var lblCurrent = new System.Windows.Controls.TextBlock
+            {
+                Text = "Current:", Foreground = System.Windows.Media.Brushes.Gray,
+                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0)
+            };
+            System.Windows.Controls.DockPanel.SetDock(lblCurrent, System.Windows.Controls.Dock.Left);
+            currentPanel.Children.Add(lblCurrent);
+            lblCurrentValue.Text = string.IsNullOrEmpty(currentValue) ? "(no response)" : currentValue;
+            currentPanel.Children.Add(lblCurrentValue);
+            stack.Children.Add(currentPanel);
+
+            if (enumHint != null)
+            {
+                stack.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text = $"Values: {enumHint}",
+                    Foreground = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFB74D")),
+                    FontSize = 10, TextWrapping = System.Windows.TextWrapping.Wrap,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 8)
+                });
+            }
+
+            stack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = "New value:", Foreground = System.Windows.Media.Brushes.White,
+                FontSize = 12, Margin = new System.Windows.Thickness(0, 0, 0, 4)
+            });
+
+            txtValue = new System.Windows.Controls.TextBox
+            {
+                Text = currentValue ?? "", FontSize = 13, Padding = new System.Windows.Thickness(6, 4, 6, 4)
+            };
+            txtValue.SelectAll();
+            stack.Children.Add(txtValue);
+
+            var btnPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new System.Windows.Thickness(0, 12, 0, 0)
+            };
+            var btnOk = new System.Windows.Controls.Button
+            {
+                Content = "SET", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4), IsDefault = true
+            };
+            btnOk.Click += (s, e) => { dialog.DialogResult = true; };
+            var btnCancel = new System.Windows.Controls.Button
+            {
+                Content = "Cancel", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
+                Margin = new System.Windows.Thickness(8, 0, 0, 0), IsCancel = true
+            };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            stack.Children.Add(btnPanel);
+
+            dialog.Content = stack;
+
+            if (dialog.ShowDialog() != true)
+                return (null, null);
+
+            // Get selected row index
+            string selectedIndex = null;
+            if (cboRow?.SelectedItem is System.Windows.Controls.ComboBoxItem selectedItem &&
+                selectedItem.Tag is ValueTuple<string, string, string> selectedTuple)
+            {
+                selectedIndex = selectedTuple.Item1;
+            }
+
+            return (txtValue.Text, selectedIndex);
+        }
+
+        /// <summary>Show a modal SET dialog (no row selection). Returns the new value or null if cancelled.</summary>
+        private string ShowSetDialog(string title, string oid, string valueType, string currentValue, string enumHint)
+        {
+            var (value, _) = ShowSetDialogWithRows(title, oid, valueType, currentValue, enumHint, null);
+            return value;
         }
 
         // ── Auto-Refresh ──
@@ -1195,6 +1652,205 @@ namespace SNMPSimMgr.ViewModels
                 SetExpandedRecursive(child, expanded);
         }
 
+        // ── Table Instance Helpers ──
+
+        private static readonly Regex InstancesPattern = new Regex(@"^(\d+) instances$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Check if a tree node is a collapsed table column (value = "X instances").
+        /// If so, find all row instances from the walk data.
+        /// Returns null if this is not a table column.
+        /// </summary>
+        private List<(string Index, string Label, string Value)> FindTableInstances(OidTreeNode node)
+        {
+            if (node.Value == null || !InstancesPattern.IsMatch(node.Value))
+                return null;
+
+            var prefix = node.Oid + ".";
+            var instances = _allRecords
+                .Where(r => r.Oid.StartsWith(prefix) && !r.Oid.Substring(prefix.Length).Contains("."))
+                .Select(r => {
+                    var index = r.Oid.Substring(prefix.Length);
+                    // Try to find a label from a sibling label column
+                    string label = FindInstanceLabel(node, index);
+                    return (Index: index, Label: label ?? index, Value: r.Value);
+                })
+                .OrderBy(x => {
+                    int num;
+                    return int.TryParse(x.Index, out num) ? num : int.MaxValue;
+                })
+                .ToList();
+
+            return instances.Count > 0 ? instances : null;
+        }
+
+        /// <summary>
+        /// For a table column node, find a descriptive label for a given row index
+        /// by looking at sibling label columns (Name/Descr/Alias).
+        /// </summary>
+        private string FindInstanceLabel(OidTreeNode columnNode, string index)
+        {
+            // Find the parent entry node (all columns are siblings under it)
+            OidTreeNode parentEntry = null;
+            foreach (var root in RootNodes)
+            {
+                parentEntry = FindParentOf(root, columnNode);
+                if (parentEntry != null) break;
+            }
+            if (parentEntry == null) return null;
+
+            // Look for a sibling column with a label-like name
+            foreach (var sibling in parentEntry.Children)
+            {
+                if (sibling == columnNode) continue;
+                foreach (var suffix in LabelColumnSuffixes)
+                {
+                    if (sibling.DisplayName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) &&
+                        sibling.DisplayName.Length > suffix.Length)
+                    {
+                        // Found a label column — find the matching instance value
+                        var labelOid = sibling.Oid + "." + index;
+                        var record = _allRecords.FirstOrDefault(r => r.Oid == labelOid);
+                        if (record != null && !string.IsNullOrEmpty(record.Value))
+                            return record.Value;
+                    }
+                }
+            }
+
+            // Fallback: first OctetString sibling
+            foreach (var sibling in parentEntry.Children)
+            {
+                if (sibling == columnNode) continue;
+                var labelOid = sibling.Oid + "." + index;
+                var record = _allRecords.FirstOrDefault(r => r.Oid == labelOid);
+                if (record != null && record.ValueType == "OctetString" &&
+                    !string.IsNullOrEmpty(record.Value) && record.Value.Length > 2)
+                    return record.Value;
+            }
+
+            return null;
+        }
+
+        private static OidTreeNode FindParentOf(OidTreeNode root, OidTreeNode target)
+        {
+            foreach (var child in root.Children)
+            {
+                if (child == target) return root;
+                var found = FindParentOf(child, target);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Show a row-picker dialog for table column nodes. Returns selected row index or null if cancelled.
+        /// </summary>
+        private string ShowRowPickerDialog(string columnName, List<(string Index, string Label, string Value)> instances)
+        {
+            var dialog = new System.Windows.Window
+            {
+                Title = $"Select Row — {columnName}",
+                Width = 480, Height = 360,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                Owner = System.Windows.Application.Current.MainWindow,
+                Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A1E2E")),
+                ResizeMode = System.Windows.ResizeMode.NoResize
+            };
+
+            var stack = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
+
+            stack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = $"Column: {columnName}",
+                Foreground = System.Windows.Media.Brushes.White,
+                FontSize = 14, FontWeight = System.Windows.FontWeights.SemiBold,
+                Margin = new System.Windows.Thickness(0, 0, 0, 4)
+            });
+            stack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = $"{instances.Count} rows — select a row to continue",
+                Foreground = System.Windows.Media.Brushes.Gray,
+                FontSize = 11, Margin = new System.Windows.Thickness(0, 0, 0, 12)
+            });
+
+            // Create a DataGrid showing row index, label, current value
+            var dt = new DataTable();
+            dt.Columns.Add("Index", typeof(string));
+            dt.Columns.Add("Label", typeof(string));
+            dt.Columns.Add("Value", typeof(string));
+            foreach (var inst in instances)
+            {
+                var dr = dt.NewRow();
+                dr["Index"] = inst.Index;
+                dr["Label"] = inst.Label;
+                dr["Value"] = inst.Value;
+                dt.Rows.Add(dr);
+            }
+
+            var dg = new System.Windows.Controls.DataGrid
+            {
+                ItemsSource = dt.DefaultView,
+                AutoGenerateColumns = true,
+                IsReadOnly = true,
+                FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
+                FontSize = 11,
+                MaxHeight = 220,
+                SelectionMode = System.Windows.Controls.DataGridSelectionMode.Single,
+                CanUserSortColumns = true
+            };
+            stack.Children.Add(dg);
+
+            string selectedIndex = null;
+
+            // Double-click to select
+            dg.MouseDoubleClick += (s, e) =>
+            {
+                if (dg.SelectedItem is System.Data.DataRowView row)
+                {
+                    selectedIndex = row["Index"]?.ToString();
+                    dialog.DialogResult = true;
+                }
+            };
+
+            var btnPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new System.Windows.Thickness(0, 12, 0, 0)
+            };
+            var btnOk = new System.Windows.Controls.Button
+            {
+                Content = "Select", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4), IsDefault = true
+            };
+            btnOk.Click += (s, e) =>
+            {
+                if (dg.SelectedItem is System.Data.DataRowView row)
+                {
+                    selectedIndex = row["Index"]?.ToString();
+                    dialog.DialogResult = true;
+                }
+            };
+            var btnCancel = new System.Windows.Controls.Button
+            {
+                Content = "Cancel", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
+                Margin = new System.Windows.Thickness(8, 0, 0, 0), IsCancel = true
+            };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            stack.Children.Add(btnPanel);
+
+            dialog.Content = stack;
+
+            // Pre-select first row
+            if (dt.Rows.Count > 0)
+                dg.SelectedIndex = 0;
+
+            if (dialog.ShowDialog() != true)
+                return null;
+            return selectedIndex;
+        }
+
         // ── Context Menu: SNMP GET ──
 
         [RelayCommand]
@@ -1203,6 +1859,67 @@ namespace SNMPSimMgr.ViewModels
             var device = _deviceList.SelectedDevice;
             if (device == null || node == null) return;
             var target = SnmpRecorderService.ResolveTarget(device);
+
+            // Table column node — show row picker first
+            var instances = FindTableInstances(node);
+            if (instances != null)
+            {
+                var rowIndex = ShowRowPickerDialog(node.DisplayName, instances);
+                if (rowIndex == null) return;
+
+                var fullOid = $"{node.Oid}.{rowIndex}";
+                IsTreeQuerying = true;
+                TreeQueryStatus = $"GET {fullOid}...";
+                try
+                {
+                    var result = await _recorder.GetSingleAsync(target, fullOid);
+                    if (result != null)
+                    {
+                        TreeQueryResults.Insert(0, new QueryResultItem
+                        {
+                            Time = DateTime.Now.ToString("HH:mm:ss"),
+                            Operation = "GET",
+                            Oid = result.Oid,
+                            Name = $"{node.DisplayName}[{rowIndex}]",
+                            ValueType = result.ValueType,
+                            Value = result.Value,
+                            IsSuccess = true
+                        });
+                        TreeQueryStatus = $"GET OK — {node.DisplayName}[{rowIndex}] = {result.Value}";
+                    }
+                    else
+                    {
+                        TreeQueryResults.Insert(0, new QueryResultItem
+                        {
+                            Time = DateTime.Now.ToString("HH:mm:ss"),
+                            Operation = "GET",
+                            Oid = fullOid,
+                            Name = $"{node.DisplayName}[{rowIndex}]",
+                            Value = "No response",
+                            IsSuccess = false
+                        });
+                        TreeQueryStatus = "GET — No response";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TreeQueryResults.Insert(0, new QueryResultItem
+                    {
+                        Time = DateTime.Now.ToString("HH:mm:ss"),
+                        Operation = "GET",
+                        Oid = fullOid,
+                        Name = $"{node.DisplayName}[{rowIndex}]",
+                        Value = $"Error: {ex.Message}",
+                        IsSuccess = false
+                    });
+                    TreeQueryStatus = $"GET error: {ex.Message}";
+                }
+                finally
+                {
+                    IsTreeQuerying = false;
+                }
+                return;
+            }
 
             IsTreeQuerying = true;
             TreeQueryStatus = $"GET {node.Oid}...";
@@ -1320,23 +2037,40 @@ namespace SNMPSimMgr.ViewModels
             if (device == null || node == null) return;
             var target = SnmpRecorderService.ResolveTarget(device);
 
-            var oid = node.IsLeaf && !node.Oid.EndsWith(".0") ? node.Oid + ".0" : node.Oid;
+            // Check if this is a table column node
+            var instances = FindTableInstances(node);
 
-            // Quick live GET to fetch actual current value and type (3s timeout — don't block the user)
-            IsTreeQuerying = true;
-            TreeQueryStatus = $"Reading {oid}...";
-            SnmpRecord liveResult = null;
-            try
+            string oid;
+            string currentValue = "";
+            string rowIndex = null;
+
+            if (instances == null)
             {
-                var getTask = _recorder.GetSingleAsync(target, oid);
-                if (await Task.WhenAny(getTask, Task.Delay(3000)) == getTask)
-                    liveResult = await getTask;
-            }
-            catch { /* continue with empty value */ }
-            finally { IsTreeQuerying = false; }
+                // Scalar node — resolve OID and do a live GET
+                oid = node.IsLeaf && !node.Oid.EndsWith(".0") ? node.Oid + ".0" : node.Oid;
 
-            var currentValue = liveResult?.Value ?? "";
-            var valueType = ResolveSnmpType(node, liveResult?.ValueType);
+                IsTreeQuerying = true;
+                TreeQueryStatus = $"Reading {oid}...";
+                try
+                {
+                    var getTask = _recorder.GetSingleAsync(target, oid);
+                    if (await Task.WhenAny(getTask, Task.Delay(3000)) == getTask)
+                    {
+                        var liveResult = await getTask;
+                        if (liveResult != null)
+                            currentValue = liveResult.Value ?? "";
+                    }
+                }
+                catch { }
+                finally { IsTreeQuerying = false; }
+            }
+            else
+            {
+                // Table column — OID will be determined by row selection in the dialog
+                oid = node.Oid;
+            }
+
+            var valueType = ResolveSnmpType(node, null);
 
             // Look up MIB enum values for hint display
             string enumHint = null;
@@ -1347,135 +2081,18 @@ namespace SNMPSimMgr.ViewModels
                 enumHint = string.Join(",  ", pairs);
             }
 
-            // Build SET dialog
-            var dialog = new System.Windows.Window
-            {
-                Title = $"SET {node.DisplayName}",
-                Width = 460, Height = enumHint != null ? 300 : 240,
-                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
-                Owner = System.Windows.Application.Current.MainWindow,
-                Background = new System.Windows.Media.SolidColorBrush(
-                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A1E2E")),
-                ResizeMode = System.Windows.ResizeMode.NoResize
-            };
+            // Show SET dialog (with integrated row selector for table columns)
+            var (newValue, selectedRow) = ShowSetDialogWithRows(
+                $"SET {node.DisplayName}", node.Oid, valueType, currentValue, enumHint, instances);
+            if (newValue == null) return;
 
-            var stack = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
-
-            // OID label
-            var lblOid = new System.Windows.Controls.TextBlock
+            // Build final OID
+            if (selectedRow != null)
             {
-                Text = $"OID: {oid}",
-                Foreground = System.Windows.Media.Brushes.LightGray,
-                FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
-                FontSize = 11, Margin = new System.Windows.Thickness(0, 0, 0, 8)
-            };
-
-            // Type (read-only — auto-resolved from MIB)
-            var typePanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
-            var lblType = new System.Windows.Controls.TextBlock
-            {
-                Text = "Type:",
-                Foreground = System.Windows.Media.Brushes.Gray,
-                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
-                Margin = new System.Windows.Thickness(0, 0, 8, 0)
-            };
-            System.Windows.Controls.DockPanel.SetDock(lblType, System.Windows.Controls.Dock.Left);
-            var lblTypeValue = new System.Windows.Controls.TextBlock
-            {
-                Text = valueType,
-                Foreground = new System.Windows.Media.SolidColorBrush(
-                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4FC3F7")),
-                FontSize = 12, FontWeight = System.Windows.FontWeights.SemiBold,
-                VerticalAlignment = System.Windows.VerticalAlignment.Center
-            };
-            typePanel.Children.Add(lblType);
-            typePanel.Children.Add(lblTypeValue);
-
-            // Current value (read-only)
-            var currentPanel = new System.Windows.Controls.DockPanel { Margin = new System.Windows.Thickness(0, 0, 0, 8) };
-            var lblCurrent = new System.Windows.Controls.TextBlock
-            {
-                Text = "Current:",
-                Foreground = System.Windows.Media.Brushes.Gray,
-                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
-                Margin = new System.Windows.Thickness(0, 0, 8, 0)
-            };
-            System.Windows.Controls.DockPanel.SetDock(lblCurrent, System.Windows.Controls.Dock.Left);
-            var lblCurrentValue = new System.Windows.Controls.TextBlock
-            {
-                Text = string.IsNullOrEmpty(currentValue) ? "(no response)" : currentValue,
-                Foreground = System.Windows.Media.Brushes.LightGreen,
-                FontFamily = new System.Windows.Media.FontFamily("Cascadia Code,Consolas"),
-                FontSize = 12, VerticalAlignment = System.Windows.VerticalAlignment.Center,
-                TextTrimming = System.Windows.TextTrimming.CharacterEllipsis
-            };
-            currentPanel.Children.Add(lblCurrent);
-            currentPanel.Children.Add(lblCurrentValue);
-
-            // Enum hint (if MIB defines named values)
-            System.Windows.Controls.TextBlock lblEnumHint = null;
-            if (enumHint != null)
-            {
-                lblEnumHint = new System.Windows.Controls.TextBlock
-                {
-                    Text = $"Values: {enumHint}",
-                    Foreground = new System.Windows.Media.SolidColorBrush(
-                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFB74D")),
-                    FontSize = 10, TextWrapping = System.Windows.TextWrapping.Wrap,
-                    Margin = new System.Windows.Thickness(0, 0, 0, 8)
-                };
+                oid = $"{node.Oid}.{selectedRow}";
+                rowIndex = selectedRow;
             }
-
-            // New value input
-            var lblVal = new System.Windows.Controls.TextBlock
-            {
-                Text = "New value:",
-                Foreground = System.Windows.Media.Brushes.White,
-                FontSize = 12, Margin = new System.Windows.Thickness(0, 0, 0, 4)
-            };
-
-            var txtValue = new System.Windows.Controls.TextBox
-            {
-                Text = currentValue,
-                FontSize = 13, Padding = new System.Windows.Thickness(6, 4, 6, 4)
-            };
-            txtValue.SelectAll();
-
-            var btnPanel = new System.Windows.Controls.StackPanel
-            {
-                Orientation = System.Windows.Controls.Orientation.Horizontal,
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-                Margin = new System.Windows.Thickness(0, 12, 0, 0)
-            };
-
-            var btnOk = new System.Windows.Controls.Button
-            {
-                Content = "SET", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
-                IsDefault = true
-            };
-            btnOk.Click += (s, e) => { dialog.DialogResult = true; };
-
-            var btnCancel = new System.Windows.Controls.Button
-            {
-                Content = "Cancel", Width = 80, Padding = new System.Windows.Thickness(0, 4, 0, 4),
-                Margin = new System.Windows.Thickness(8, 0, 0, 0), IsCancel = true
-            };
-
-            btnPanel.Children.Add(btnOk);
-            btnPanel.Children.Add(btnCancel);
-            stack.Children.Add(lblOid);
-            stack.Children.Add(typePanel);
-            stack.Children.Add(currentPanel);
-            if (lblEnumHint != null) stack.Children.Add(lblEnumHint);
-            stack.Children.Add(lblVal);
-            stack.Children.Add(txtValue);
-            stack.Children.Add(btnPanel);
-            dialog.Content = stack;
-
-            if (dialog.ShowDialog() != true)
-                return;
-
-            var newValue = txtValue.Text;
+            var displayName = rowIndex != null ? $"{node.DisplayName}[{rowIndex}]" : node.DisplayName;
             IsTreeQuerying = true;
             TreeQueryStatus = $"SET {oid} = {newValue}...";
             try
@@ -1486,7 +2103,7 @@ namespace SNMPSimMgr.ViewModels
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "SET",
                     Oid = oid,
-                    Name = node.DisplayName,
+                    Name = displayName,
                     ValueType = valueType,
                     Value = success ? newValue : "SET failed",
                     IsSuccess = success
@@ -1494,12 +2111,12 @@ namespace SNMPSimMgr.ViewModels
 
                 if (success)
                 {
-                    if (node.IsLeaf) node.Value = newValue;
-                    TreeQueryStatus = $"SET OK — {node.DisplayName} = {newValue}";
+                    if (node.IsLeaf && rowIndex == null) node.Value = newValue;
+                    TreeQueryStatus = $"SET OK — {displayName} = {newValue}";
                 }
                 else
                 {
-                    TreeQueryStatus = $"SET failed for {node.DisplayName}";
+                    TreeQueryStatus = $"SET failed for {displayName}";
                 }
             }
             catch (Exception ex)
@@ -1509,7 +2126,7 @@ namespace SNMPSimMgr.ViewModels
                     Time = DateTime.Now.ToString("HH:mm:ss"),
                     Operation = "SET",
                     Oid = oid,
-                    Name = node.DisplayName,
+                    Name = displayName,
                     Value = $"Error: {ex.Message}",
                     IsSuccess = false
                 });
@@ -1606,6 +2223,7 @@ namespace SNMPSimMgr.ViewModels
         public string ValueType { get; set; }
         public string Access { get; set; }
         public bool IsLeaf { get; set; }
+        public int Depth { get; set; }
         public ObservableCollection<OidTreeNode>  Children { get; } = new ObservableCollection<OidTreeNode>();
 
         [ObservableProperty] private bool _isExpanded;
@@ -1627,9 +2245,16 @@ namespace SNMPSimMgr.ViewModels
         public bool HasChildren => Children.Count > 0;
 
         /// <summary>For tree binding: " = value" for leaves, empty for branches. Truncated to 80 chars.</summary>
-        public string ValueDisplay => IsLeaf && Value != null
-            ? (Value.Length > 80 ? $"  =  {Value.Substring(0, 80)}..." : $"  =  {Value}")
-            : string.Empty;
+        public string ValueDisplay
+        {
+            get
+            {
+                if (!IsLeaf || Value == null) return string.Empty;
+                // Collapse newlines and multiple spaces to single space
+                var clean = System.Text.RegularExpressions.Regex.Replace(Value, @"\s+", " ").Trim();
+                return clean.Length > 80 ? $"= {clean.Substring(0, 80)}..." : $"= {clean}";
+            }
+        }
 
         public string Label => Value != null
             ? $"{DisplayName} ({Oid}) = {Value}"

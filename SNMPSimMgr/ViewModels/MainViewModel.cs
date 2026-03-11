@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,9 @@ namespace SNMPSimMgr.ViewModels
 
         [ObservableProperty]
         private bool _isAutomationRunning;
+
+        [ObservableProperty]
+        private bool _hasActiveSimulators;
 
         public DeviceListViewModel DeviceList { get; }
         public RecorderViewModel Recorder { get; }
@@ -52,6 +56,12 @@ namespace SNMPSimMgr.ViewModels
             Scenario = scenario;
             IddEditor = iddEditor;
             _demoService = demoService;
+
+            // Track simulator count for button enable/disable
+            Simulator.ActiveSimulators.CollectionChanged += (_, __) =>
+            {
+                HasActiveSimulators = Simulator.ActiveSimulators.Count > 0;
+            };
         }
 
         [RelayCommand]
@@ -301,6 +311,15 @@ namespace SNMPSimMgr.ViewModels
         private void StopAutomation()
         {
             _automationCts?.Cancel();
+            Simulator.StopAllCommand.Execute(null);
+            StatusText = "Automation stopped — all simulators stopped";
+        }
+
+        [RelayCommand]
+        private void StopAllSimulators()
+        {
+            Simulator.StopAllCommand.Execute(null);
+            StatusText = "All simulators stopped";
         }
     }
 }

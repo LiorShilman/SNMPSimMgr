@@ -7,6 +7,8 @@
     <Application.Resources>
         <conv:InverseBoolConverter x:Key="InverseBoolConverter"/>
         <conv:BoolToVisConverter x:Key="BoolToVisConverter"/>
+        <conv:DepthToIndentConverter x:Key="DepthToIndentConverter"/>
+        <conv:TypeToColorConverter x:Key="TypeToColorConverter"/>
 
         <!-- Color Palette -->
         <Color x:Key="BgDark">#1B1F2A</Color>
@@ -476,14 +478,19 @@
         <Style TargetType="TreeViewItem">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="Padding" Value="2,1"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#2A3A5C"/>
+                    <Setter Property="Background" Value="#1E2A4A"/>
                 </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#303850"/>
-                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="IsSelected" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#252B3D"/>
+                </MultiTrigger>
             </Style.Triggers>
         </Style>
 

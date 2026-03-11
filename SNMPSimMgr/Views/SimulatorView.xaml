@@ -3,15 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:SNMPSimMgr.Models"
              xmlns:helpers="clr-namespace:SNMPSimMgr.Helpers">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                  helpers:ScrollHelper.BubbleMouseWheel="True">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto" MinHeight="200"/>
+            <RowDefinition Height="*" MinHeight="200"/>
         </Grid.RowDefinitions>
 
         <!-- Controls -->
@@ -353,5 +351,4 @@
             </Border>
         </Grid>
     </Grid>
-    </ScrollViewer>
 </UserControl>
