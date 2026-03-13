@@ -22,12 +22,18 @@ namespace SNMPSimMgr.ViewModels
         private string _statusText = "Ready";
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(StartDemoSimulationCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExitDemoModeCommand))]
         private bool _isDemoMode;
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(RunFullAutomationCommand))]
+        [NotifyCanExecuteChangedFor(nameof(StopAutomationCommand))]
         private bool _isAutomationRunning;
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(StopAllSimulatorsCommand))]
+        [NotifyCanExecuteChangedFor(nameof(StartAllAndInjectCommand))]
         private bool _hasActiveSimulators;
 
         public DeviceListViewModel DeviceList { get; }
@@ -62,6 +68,13 @@ namespace SNMPSimMgr.ViewModels
             {
                 HasActiveSimulators = Simulator.ActiveSimulators.Count > 0;
             };
+
+            // Refresh device-dependent commands when devices list changes
+            DeviceList.Devices.CollectionChanged += (_, __) =>
+            {
+                StartDemoSimulationCommand.NotifyCanExecuteChanged();
+                StartAllAndInjectCommand.NotifyCanExecuteChanged();
+            };
         }
 
         [RelayCommand]
@@ -79,15 +92,11 @@ namespace SNMPSimMgr.ViewModels
             StatusText = $"Demo Mode — {devices.Count} devices loaded with simulated SNMP data";
         }
 
-        [RelayCommand]
+        private bool CanStartDemoSimulation() => IsDemoMode && DeviceList.Devices.Count > 0;
+
+        [RelayCommand(CanExecute = nameof(CanStartDemoSimulation))]
         private async Task StartDemoSimulation()
         {
-            if (!IsDemoMode || DeviceList.Devices.Count == 0)
-            {
-                StatusText = "Load demo data first!";
-                return;
-            }
-
             StatusText = "Starting all demo simulators...";
             int port = 10161;
 
@@ -101,15 +110,11 @@ namespace SNMPSimMgr.ViewModels
             StatusText = $"Demo Mode — {DeviceList.Devices.Count} simulators running (ports 10161-{port - 1})";
         }
 
-        [RelayCommand]
+        private bool CanStartAllAndInject() => DeviceList.Devices.Count > 0 && !HasActiveSimulators;
+
+        [RelayCommand(CanExecute = nameof(CanStartAllAndInject))]
         private async Task StartAllAndInject()
         {
-            if (DeviceList.Devices.Count == 0)
-            {
-                StatusText = "No devices loaded!";
-                return;
-            }
-
             StatusText = "Starting all simulators with injection...";
             int basePort = Simulator.SimulatorPort;
             int port = basePort;
@@ -143,7 +148,9 @@ namespace SNMPSimMgr.ViewModels
                 : $"▶ {started} simulators running (ports {basePort}-{basePort + started - 1}) — no sessions to inject";
         }
 
-        [RelayCommand]
+        private bool CanExitDemoMode() => IsDemoMode;
+
+        [RelayCommand(CanExecute = nameof(CanExitDemoMode))]
         private async Task ExitDemoMode()
         {
             Simulator.StopAllCommand.Execute(null);
@@ -176,11 +183,11 @@ namespace SNMPSimMgr.ViewModels
             guide.ShowDialog();
         }
 
-        [RelayCommand]
+        private bool CanRunFullAutomation() => !IsAutomationRunning;
+
+        [RelayCommand(CanExecute = nameof(CanRunFullAutomation))]
         private async Task RunFullAutomation()
         {
-            if (IsAutomationRunning) return;
-
             IsAutomationRunning = true;
             _automationCts = new CancellationTokenSource();
             var token = _automationCts.Token;
@@ -307,7 +314,9 @@ namespace SNMPSimMgr.ViewModels
             }
         }
 
-        [RelayCommand]
+        private bool CanStopAutomation() => IsAutomationRunning;
+
+        [RelayCommand(CanExecute = nameof(CanStopAutomation))]
         private void StopAutomation()
         {
             _automationCts?.Cancel();
@@ -315,7 +324,9 @@ namespace SNMPSimMgr.ViewModels
             StatusText = "Automation stopped — all simulators stopped";
         }
 
-        [RelayCommand]
+        private bool CanStopAllSimulators() => HasActiveSimulators;
+
+        [RelayCommand(CanExecute = nameof(CanStopAllSimulators))]
         private void StopAllSimulators()
         {
             Simulator.StopAllCommand.Execute(null);

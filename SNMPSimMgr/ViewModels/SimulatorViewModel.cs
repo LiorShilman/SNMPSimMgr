@@ -52,21 +52,49 @@ namespace SNMPSimMgr.ViewModels
         [ObservableProperty] private int _simulatorPort = 10161;
         [ObservableProperty] private string _trapTargetIp = "127.0.0.1";
         [ObservableProperty] private int _trapTargetPort = 162;
-        [ObservableProperty] private string _queryOid = "1.3.6.1.2.1.1.1.0";
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(QueryGetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QuerySetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QueryWalkCommand))]
+        private string _queryOid = "1.3.6.1.2.1.1.1.0";
         [ObservableProperty] private string _setValue = "";
         [ObservableProperty] private string _setValueType = "OctetString";
-        [ObservableProperty] private SimulatorDeviceStatus _selectedSimulator;
-        [ObservableProperty] private bool _isQuerying;
-        [ObservableProperty] private bool _isInjecting;
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(QueryGetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QuerySetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QueryWalkCommand))]
+        private SimulatorDeviceStatus _selectedSimulator;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(QueryGetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QuerySetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(QueryWalkCommand))]
+        private bool _isQuerying;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(InjectSessionCommand))]
+        [NotifyCanExecuteChangedFor(nameof(StopInjectionCommand))]
+        private bool _isInjecting;
+
         [ObservableProperty] private string _injectionStatus = "";
 
         // IDD Simulate
-        [ObservableProperty] private string _iddFieldId = "";
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(BroadcastIddUpdateCommand))]
+        private string _iddFieldId = "";
         [ObservableProperty] private string _iddFieldValue = "";
         [ObservableProperty] private IddSimField _selectedIddField;
         public ObservableCollection<IddSimField>  IddFields { get; } = new ObservableCollection<IddSimField>();
-        [ObservableProperty] private string _selectedSessionName;
-        [ObservableProperty] private bool _isSelectedDeviceSimulating;
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(InjectSessionCommand))]
+        private string _selectedSessionName;
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(StartSimulatorCommand))]
+        [NotifyCanExecuteChangedFor(nameof(StopSimulatorCommand))]
+        [NotifyCanExecuteChangedFor(nameof(InjectSessionCommand))]
+        [NotifyCanExecuteChangedFor(nameof(PlayTrapsCommand))]
+        private bool _isSelectedDeviceSimulating;
+
         [ObservableProperty] private bool _isTrafficPaused;
 
         public DeviceProfile SelectedDevice => _deviceList.SelectedDevice;
@@ -87,12 +115,19 @@ namespace SNMPSimMgr.ViewModels
             _trapGenerator.LogMessage += msg => App.Current.Dispatcher.BeginInvoke((Action)(() =>
                 LogEntries.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {msg}")));
 
+            ActiveSimulators.CollectionChanged += (_, __) =>
+            {
+                StopAllCommand.NotifyCanExecuteChanged();
+            };
+
             _deviceList.PropertyChanged += async (_, e) =>
             {
                 if (e.PropertyName == nameof(DeviceListViewModel.SelectedDevice))
                 {
                     OnPropertyChanged(nameof(SelectedDevice));
                     RefreshSelectedDeviceState();
+                    StartSimulatorCommand.NotifyCanExecuteChanged();
+                    StopSimulatorCommand.NotifyCanExecuteChanged();
                     await RefreshSessionList();
                 }
             };
@@ -152,7 +187,9 @@ namespace SNMPSimMgr.ViewModels
             };
         }
 
-        [RelayCommand]
+        private bool CanStartSimulator() => SelectedDevice != null && !IsSelectedDeviceSimulating;
+
+        [RelayCommand(CanExecute = nameof(CanStartSimulator))]
         private async Task StartSimulator()
         {
             var device = SelectedDevice;
@@ -232,7 +269,9 @@ namespace SNMPSimMgr.ViewModels
             RefreshSelectedDeviceState();
         }
 
-        [RelayCommand]
+        private bool CanStopSimulator() => SelectedDevice != null && IsSelectedDeviceSimulating;
+
+        [RelayCommand(CanExecute = nameof(CanStopSimulator))]
         private void StopSimulator()
         {
             var device = SelectedDevice;
@@ -254,7 +293,9 @@ namespace SNMPSimMgr.ViewModels
             RefreshSelectedDeviceState();
         }
 
-        [RelayCommand]
+        private bool CanStopAll() => ActiveSimulators.Count > 0;
+
+        [RelayCommand(CanExecute = nameof(CanStopAll))]
         private void StopAll()
         {
             foreach (var kvp in _simulators)
@@ -273,7 +314,9 @@ namespace SNMPSimMgr.ViewModels
         /// Inject a recorded session into the selected simulator.
         /// Values update dynamically over time, looping the recording.
         /// </summary>
-        [RelayCommand]
+        private bool CanInjectSession() => SelectedDevice != null && IsSelectedDeviceSimulating && !string.IsNullOrEmpty(SelectedSessionName) && !IsInjecting;
+
+        [RelayCommand(CanExecute = nameof(CanInjectSession))]
         private async Task InjectSession()
         {
             var device = SelectedDevice;
@@ -346,7 +389,9 @@ namespace SNMPSimMgr.ViewModels
             LogEntries.Insert(0,$"Injection started for {device.Name} — {session.Frames.Count} frames, interval {session.IntervalSeconds}s");
         }
 
-        [RelayCommand]
+        private bool CanStopInjection() => IsInjecting;
+
+        [RelayCommand(CanExecute = nameof(CanStopInjection))]
         private void StopInjection()
         {
             var device = SelectedDevice;
@@ -358,7 +403,9 @@ namespace SNMPSimMgr.ViewModels
             InjectionStatus = "Stopped";
         }
 
-        [RelayCommand]
+        private bool CanPlayTraps() => SelectedDevice != null && IsSelectedDeviceSimulating;
+
+        [RelayCommand(CanExecute = nameof(CanPlayTraps))]
         private async Task PlayTraps()
         {
             var device = SelectedDevice;
@@ -377,7 +424,9 @@ namespace SNMPSimMgr.ViewModels
             }
         }
 
-        [RelayCommand]
+        private bool CanQuery() => SelectedSimulator != null && !string.IsNullOrWhiteSpace(QueryOid) && !IsQuerying;
+
+        [RelayCommand(CanExecute = nameof(CanQuery))]
         private async Task QueryGet()
         {
             var tempDevice = BuildTempDevice();
@@ -441,7 +490,7 @@ namespace SNMPSimMgr.ViewModels
             }
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanQuery))]
         private async Task QuerySet()
         {
             var tempDevice = BuildTempDevice();
@@ -515,7 +564,7 @@ namespace SNMPSimMgr.ViewModels
             }
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanQuery))]
         private async Task QueryWalk()
         {
             var tempDevice = BuildTempDevice();
@@ -731,7 +780,9 @@ namespace SNMPSimMgr.ViewModels
         /// Broadcast an IDD field update to all connected Angular clients.
         /// Also updates the local field list value.
         /// </summary>
-        [RelayCommand]
+        private bool CanBroadcastIddUpdate() => !string.IsNullOrWhiteSpace(IddFieldId);
+
+        [RelayCommand(CanExecute = nameof(CanBroadcastIddUpdate))]
         private void BroadcastIddUpdate()
         {
             if (string.IsNullOrWhiteSpace(IddFieldId)) return;

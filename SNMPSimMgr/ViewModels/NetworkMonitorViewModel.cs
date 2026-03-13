@@ -20,6 +20,8 @@ namespace SNMPSimMgr.ViewModels
 
         [ObservableProperty] private int _totalRequests;
         [ObservableProperty] private int _clientCount;
+        [ObservableProperty] private bool _isLivePaused;
+        [ObservableProperty] private int _droppedWhilePaused;
 
         public NetworkMonitorViewModel(SimulatorViewModel simulator)
         {
@@ -38,6 +40,15 @@ namespace SNMPSimMgr.ViewModels
             {
                 App.Current.Dispatcher.BeginInvoke((Action)(() =>
                     OnTrafficReceived(deviceName, op, oid, val, sourceIp)));
+                return;
+            }
+
+            // Always count total requests even when paused
+            TotalRequests++;
+
+            if (IsLivePaused)
+            {
+                DroppedWhilePaused++;
                 return;
             }
 
@@ -76,8 +87,6 @@ namespace SNMPSimMgr.ViewModels
 
             while (TrafficEntries.Count > 500)
                 TrafficEntries.RemoveAt(TrafficEntries.Count - 1);
-
-            TotalRequests++;
         }
 
         private async Task ResetActiveAsync(ClientConnection client)
@@ -87,12 +96,21 @@ namespace SNMPSimMgr.ViewModels
         }
 
         [RelayCommand]
+        private void ToggleLive()
+        {
+            IsLivePaused = !IsLivePaused;
+            if (!IsLivePaused)
+                DroppedWhilePaused = 0;
+        }
+
+        [RelayCommand]
         private void ClearTraffic()
         {
             TrafficEntries.Clear();
             Connections.Clear();
             TotalRequests = 0;
             ClientCount = 0;
+            DroppedWhilePaused = 0;
         }
     }
 }
