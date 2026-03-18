@@ -1,14 +1,33 @@
+<!-- Bulk action bar (visible when dirty fields exist) -->
+@if (dirtyCount > 0) {
+  <div class="bulk-bar">
+    <span class="bulk-count">{{ dirtyCount }} pending change{{ dirtyCount > 1 ? 's' : '' }}</span>
+    <button type="button" class="btn-bulk-send" (click)="sendAll()">
+      &#9650; Send All ({{ dirtyCount }})
+    </button>
+    <button type="button" class="btn-bulk-revert" (click)="revertAll()">Revert All</button>
+  </div>
+}
+
 <div class="config-list">
   @for (field of fields; track field.oid) {
-    <div class="config-row" [class.editing]="editingOid === field.oid">
+    <div class="config-row"
+         [class.editing]="editingOid === field.oid"
+         [class.dirty]="isDirty(field)">
       <div class="config-label">
         <span class="config-name">{{ friendlyName(field.name) }}</span>
+        @if (isDirty(field)) {
+          <span class="dirty-badge" title="Pending change: {{ getDirtyValue(field) }}">&#9998;</span>
+        }
       </div>
 
       <div class="config-value-area">
         @if (editingOid !== field.oid) {
           <div class="config-display" (click)="startEdit(field)">
-            @if (field.inputType === 'status-led') {
+            @if (isDirty(field)) {
+              <span class="dirty-value">{{ getDirtyValue(field) }}</span>
+              <span class="original-value">was: {{ displayValue(field) }}</span>
+            } @else if (field.inputType === 'status-led') {
               <span class="status-led" [attr.data-status]="getStatusClass(field)">
                 <span class="led-dot"></span>
                 <span class="led-label">{{ displayValue(field) }}</span>
@@ -23,6 +42,14 @@
               <span class="display-val">{{ displayValue(field) }}</span>
             }
           </div>
+          @if (isDirty(field)) {
+            <button type="button" class="btn-revert" title="Revert" aria-label="Revert" (click)="revertField(field)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+          }
           <button type="button" class="btn-edit" title="Edit" aria-label="Edit" (click)="startEdit(field)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -56,7 +83,7 @@
                        class="edit-input" placeholder="Enter number"
                        title="Number" aria-label="Number"
                        [attr.title]="field.name" [attr.aria-label]="field.name"
-                       (keydown.enter)="sendSet(field)"
+                       (keydown.enter)="stageEdit(field)"
                        (keydown.escape)="cancelEdit()">
               }
               @case ('ip') {
@@ -64,7 +91,7 @@
                        class="edit-input" placeholder="0.0.0.0"
                        title="IP address" aria-label="IP address"
                        [attr.title]="field.name" [attr.aria-label]="field.name"
-                       (keydown.enter)="sendSet(field)"
+                       (keydown.enter)="stageEdit(field)"
                        (keydown.escape)="cancelEdit()">
               }
               @default {
@@ -73,11 +100,12 @@
                        title="Value" aria-label="Value"
                        [attr.title]="field.name" [attr.aria-label]="field.name"
                        [maxlength]="field.maxLength ?? 255"
-                       (keydown.enter)="sendSet(field)"
+                       (keydown.enter)="stageEdit(field)"
                        (keydown.escape)="cancelEdit()">
               }
             }
-            <button type="button" class="btn-set" (click)="sendSet(field)">Save</button>
+            <button type="button" class="btn-stage" title="Stage for bulk send" (click)="stageEdit(field)">Stage</button>
+            <button type="button" class="btn-set" title="Send now" (click)="sendSet(field)">Send</button>
             <button type="button" class="btn-cancel" title="Cancel" aria-label="Cancel" (click)="cancelEdit()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>

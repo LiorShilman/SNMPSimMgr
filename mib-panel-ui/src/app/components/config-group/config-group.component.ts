@@ -2,6 +2,7 @@ import { Component, Input, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MibFieldSchema } from '../../models/mib-schema';
 import { MibPanelService } from '../../services/mib-panel.service';
+import { BulkSetItem } from '../../services/signalr.service';
 
 @Component({
   selector: 'app-config-group',
@@ -19,22 +20,81 @@ export class ConfigGroupComponent {
   editingOid: string | null = null;
   editValue = '';
 
+  // Dirty tracking: OID → pending value
+  dirtyValues = new Map<string, string>();
+
+  get dirtyCount(): number {
+    return this.dirtyValues.size;
+  }
+
+  isDirty(field: MibFieldSchema): boolean {
+    return this.dirtyValues.has(field.oid);
+  }
+
+  getDirtyValue(field: MibFieldSchema): string {
+    return this.dirtyValues.get(field.oid) ?? '';
+  }
+
   startEdit(field: MibFieldSchema): void {
     this.editingOid = field.oid;
-    this.editValue = field.currentValue || field.defaultValue || '';
+    // If already dirty, resume editing the pending value
+    this.editValue = this.dirtyValues.get(field.oid)
+      ?? field.currentValue
+      ?? field.defaultValue
+      ?? '';
   }
 
   cancelEdit(): void {
     this.editingOid = null;
   }
 
+  /** Stage change locally (no send). */
+  stageEdit(field: MibFieldSchema): void {
+    const original = field.currentValue ?? field.defaultValue ?? '';
+    if (this.editValue !== original) {
+      this.dirtyValues.set(field.oid, this.editValue);
+    } else {
+      this.dirtyValues.delete(field.oid); // reverted to original
+    }
+    this.editingOid = null;
+  }
+
+  /** Send single field immediately (existing behavior for quick edits). */
   sendSet(field: MibFieldSchema): void {
     const valueType = this.panelService.resolveValueType(field.inputType, field.baseType);
-    // IDD fields (non-numeric OID) don't need .0 suffix; SNMP scalars do
     const setOid = /^\d/.test(field.oid) ? field.oid + '.0' : field.oid;
     this.panelService.sendSet(setOid, field.name, this.editValue, valueType);
     field.currentValue = this.editValue;
+    this.dirtyValues.delete(field.oid);
     this.editingOid = null;
+  }
+
+  /** Revert a single dirty field. */
+  revertField(field: MibFieldSchema): void {
+    this.dirtyValues.delete(field.oid);
+  }
+
+  /** Revert all dirty fields. */
+  revertAll(): void {
+    this.dirtyValues.clear();
+  }
+
+  /** Send all dirty fields as a single bulk SET via panelService. */
+  sendAll(): void {
+    if (this.dirtyCount === 0) return;
+
+    const items: BulkSetItem[] = [];
+    for (const [oid, value] of this.dirtyValues) {
+      const field = this.fields.find(f => f.oid === oid);
+      if (!field) continue;
+      const valueType = this.panelService.resolveValueType(field.inputType, field.baseType);
+      const setOid = /^\d/.test(oid) ? oid + '.0' : oid;
+      items.push({ oid: setOid, value, valueType });
+      field.currentValue = value;
+    }
+
+    this.panelService.sendBulkSet(items);
+    this.dirtyValues.clear();
   }
 
   resolveEnum(field: MibFieldSchema): string | null {
@@ -50,7 +110,7 @@ export class ConfigGroupComponent {
       .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
   }
 
-  // Toggle helpers: derive on/off values and labels from enum options
+  // Toggle helpers
   getToggleOnValue(field: MibFieldSchema): string {
     if (field.options?.length === 2) {
       const sorted = [...field.options].sort((a, b) => a.value - b.value);

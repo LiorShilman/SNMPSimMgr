@@ -19,6 +19,7 @@ namespace SNMPSimMgr.Services
         // without needing to force-close the socket (which causes NRE in SnmpSharpNet)
         private const int WalkTimeout = 2000;
         private const int WalkRetries = 1;
+        private const int MaxConsecutiveSkips = 10;
 
         /// <summary>
         /// Active simulator endpoints: device ID → (listenIp, port).
@@ -147,6 +148,7 @@ namespace SNMPSimMgr.Services
             var rootOid = new Oid(rootOidStr);
             var lastOid = rootOid;
             int count = 0;
+            int consecutiveSkips = 0;
 
             try
             {
@@ -157,14 +159,35 @@ namespace SNMPSimMgr.Services
                     var pdu = new Pdu(PduType.GetNext);
                     pdu.VbList.Add(lastOid);
 
-                    var response = target.Request(pdu, param);
+                    SnmpV2Packet response = null;
+                    try
+                    {
+                        response = (SnmpV2Packet)target.Request(pdu, param);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"  Request error at {lastOid}: {ex.Message}");
+                    }
 
-                    // Check cancellation after each request completes
                     ct.ThrowIfCancellationRequested();
 
                     if (response == null || response.Pdu.ErrorStatus != 0)
-                        break;
+                    {
+                        // Timeout or error — try to skip to the next branch
+                        var nextOid = SkipToNextBranch(lastOid, rootOid);
+                        if (nextOid == null || ++consecutiveSkips > MaxConsecutiveSkips)
+                        {
+                            Log(consecutiveSkips > MaxConsecutiveSkips
+                                ? $"  Too many consecutive skips ({MaxConsecutiveSkips}), ending walk"
+                                : $"  No more branches to skip to, ending walk");
+                            break;
+                        }
+                        Log($"  Timeout at {lastOid}, skipping to {nextOid}");
+                        lastOid = nextOid;
+                        continue;
+                    }
 
+                    consecutiveSkips = 0; // reset on success
                     var vb = response.Pdu.VbList[0];
 
                     if (vb.Oid == null ||
@@ -200,6 +223,7 @@ namespace SNMPSimMgr.Services
             var rootOid = new Oid(rootOidStr);
             var lastOid = rootOid;
             int count = 0;
+            int consecutiveSkips = 0;
 
             try
             {
@@ -210,13 +234,34 @@ namespace SNMPSimMgr.Services
                     var pdu = new ScopedPdu(PduType.GetNext);
                     pdu.VbList.Add(lastOid);
 
-                    var response = target.Request(pdu, param);
+                    SnmpV3Packet response = null;
+                    try
+                    {
+                        response = (SnmpV3Packet)target.Request(pdu, param);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"  Request error at {lastOid}: {ex.Message}");
+                    }
 
                     ct.ThrowIfCancellationRequested();
 
                     if (response == null || response.Pdu.ErrorStatus != 0)
-                        break;
+                    {
+                        var nextOid = SkipToNextBranch(lastOid, rootOid);
+                        if (nextOid == null || ++consecutiveSkips > MaxConsecutiveSkips)
+                        {
+                            Log(consecutiveSkips > MaxConsecutiveSkips
+                                ? $"  Too many consecutive skips ({MaxConsecutiveSkips}), ending walk"
+                                : $"  No more branches to skip to, ending walk");
+                            break;
+                        }
+                        Log($"  Timeout at {lastOid}, skipping to {nextOid}");
+                        lastOid = nextOid;
+                        continue;
+                    }
 
+                    consecutiveSkips = 0;
                     var vb = response.Pdu.VbList[0];
 
                     if (vb.Oid == null ||
@@ -240,6 +285,34 @@ namespace SNMPSimMgr.Services
             {
                 try { target.Close(); } catch { }
             }
+        }
+
+        /// <summary>
+        /// When a GETNEXT times out at a given OID, skip to the next sibling branch.
+        /// For example: 1.3.6.1.4.1.2544.1.12.13.1.2.3 → tries 1.3.6.1.4.1.2544.1.12.14
+        /// by progressively stripping the last component and incrementing,
+        /// until we find a branch still under rootOid.
+        /// </summary>
+        private Oid SkipToNextBranch(Oid stuckOid, Oid rootOid)
+        {
+            var parts = stuckOid.ToString().Split('.');
+            var rootLen = rootOid.ToString().Split('.').Length;
+
+            // Try progressively shorter OIDs: strip last component, increment
+            for (int len = parts.Length - 1; len > rootLen; len--)
+            {
+                var parentParts = new string[len];
+                Array.Copy(parts, parentParts, len);
+
+                // Increment last component to jump to next sibling branch
+                if (uint.TryParse(parentParts[len - 1], out uint last))
+                {
+                    parentParts[len - 1] = (last + 1).ToString();
+                    return new Oid(string.Join(".", parentParts));
+                }
+            }
+
+            return null; // No more branches under rootOid
         }
 
         public async Task<SnmpRecord> GetSingleAsync(DeviceProfile device, string oid)

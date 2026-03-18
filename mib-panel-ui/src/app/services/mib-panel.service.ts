@@ -1,6 +1,6 @@
-import { Injectable, signal, inject, effect, untracked, DestroyRef } from '@angular/core';
+import { Injectable, signal, computed, inject, effect, untracked, DestroyRef } from '@angular/core';
 import { MibPanelSchema, SetFeedback } from '../models/mib-schema';
-import { SignalRService, OidChangedEvent } from './signalr.service';
+import { SignalRService, OidChangedEvent, BulkSetItem } from './signalr.service';
 
 /** Callback for name-based field watches. Receives the full change event. */
 export type FieldWatchCallback = (event: OidChangedEvent) => void;
@@ -14,6 +14,9 @@ export class MibPanelService {
   feedbacks = signal<SetFeedback[]>([]);
   isLoading = signal(false);
   currentDeviceId = signal<string | null>(null);
+
+  /** True when SignalR is connected — use to enable/disable SET controls */
+  isConnected = computed(() => this.signalR.connectionState() === 'connected');
 
   private feedbackId = 0;
 
@@ -138,6 +141,20 @@ export class MibPanelService {
 
       // Dispatch name-based watches
       untracked(() => this.dispatchNameWatches(change));
+    });
+
+    // Auto-refresh values when connection is restored after a drop
+    effect(() => {
+      const ts = this.signalR.reconnected();
+      if (!ts) return;
+
+      untracked(() => {
+        const deviceId = this.currentDeviceId();
+        if (deviceId && this.schema()) {
+          console.log('[MibPanel] Connection restored — auto-refreshing values');
+          this.refreshValues();
+        }
+      });
     });
   }
 
@@ -266,20 +283,123 @@ export class MibPanelService {
           );
         });
     } else {
-      // Fallback: simulate (for file-loaded schemas or disconnected state)
-      setTimeout(() => {
-        this.updateFieldValue(oid, value);
-        this.feedbacks.update(list =>
-          list.map(f =>
-            f.id === feedback.id
-              ? { ...f, status: 'success' as const, message: 'SET acknowledged (simulated)' }
-              : f
-          )
-        );
-      }, 400 + Math.random() * 600);
+      // Not connected — report error (no simulation in production)
+      this.feedbacks.update(list =>
+        list.map(f =>
+          f.id === feedback.id
+            ? { ...f, status: 'error' as const, message: 'Not connected to server' }
+            : f
+        )
+      );
     }
 
     // Auto-remove after 8 seconds
+    setTimeout(() => {
+      this.feedbacks.update(list => list.filter(f => f.id !== feedback.id));
+    }, 8000);
+  }
+
+  /** Send multiple SET operations in one bulk call via SignalR */
+  sendBulkSet(items: BulkSetItem[]): void {
+    const deviceId = this.currentDeviceId();
+    const isConnected = this.signalR.connectionState() === 'connected';
+
+    if (!isConnected || !deviceId) {
+      const feedback: SetFeedback = {
+        id: ++this.feedbackId,
+        oid: `bulk(${items.length})`,
+        name: 'Bulk SET',
+        value: '',
+        valueType: '',
+        timestamp: new Date(),
+        status: 'error',
+        message: 'Not connected to server',
+      };
+      this.feedbacks.update(list => [feedback, ...list]);
+      setTimeout(() => {
+        this.feedbacks.update(list => list.filter(f => f.id !== feedback.id));
+      }, 8000);
+      return;
+    }
+
+    const feedback: SetFeedback = {
+      id: ++this.feedbackId,
+      oid: `bulk(${items.length})`,
+      name: 'Bulk SET',
+      value: `${items.length} fields`,
+      valueType: '',
+      timestamp: new Date(),
+      status: 'pending',
+    };
+    this.feedbacks.update(list => [feedback, ...list]);
+
+    // Split into SNMP items (numeric OID) and IDD items (named fields)
+    const snmpItems = items.filter(i => /^\d/.test(i.oid));
+    const iddItems = items.filter(i => !/^\d/.test(i.oid));
+    const effectiveDeviceId = deviceId || 'idd-local';
+
+    const promises: Promise<void>[] = [];
+    let succeeded = 0;
+    let failed = 0;
+
+    // SNMP items → single bulk call
+    if (snmpItems.length > 0) {
+      promises.push(
+        this.signalR.sendBulkSet(deviceId, snmpItems).then(result => {
+          for (const res of result.results) {
+            if (res.success) {
+              const item = snmpItems.find(i => i.oid === res.oid);
+              if (item) this.updateFieldValue(res.oid, item.value);
+            }
+          }
+          succeeded += result.succeeded;
+          failed += result.failed;
+        })
+      );
+    }
+
+    // IDD items → single bulk call
+    if (iddItems.length > 0) {
+      promises.push(
+        this.signalR.sendIddBulkSet(effectiveDeviceId, iddItems).then(result => {
+          for (const res of result.results) {
+            if (res.success) {
+              const item = iddItems.find(i => i.oid === res.oid);
+              if (item) this.updateFieldValue(res.oid, item.value);
+            }
+          }
+          succeeded += result.succeeded;
+          failed += result.failed;
+        })
+      );
+    }
+
+    Promise.all(promises)
+      .then(() => {
+        const total = items.length;
+        const allOk = failed === 0;
+        this.feedbacks.update(list =>
+          list.map(f =>
+            f.id === feedback.id
+              ? {
+                  ...f,
+                  status: (allOk ? 'success' : 'error') as any,
+                  message: `${succeeded}/${total} succeeded`,
+                }
+              : f
+          )
+        );
+      })
+      .catch(err => {
+        this.feedbacks.update(list =>
+          list.map(f =>
+            f.id === feedback.id
+              ? { ...f, status: 'error' as const, message: err?.message || 'Bulk SET failed' }
+              : f
+          )
+        );
+      });
+
     setTimeout(() => {
       this.feedbacks.update(list => list.filter(f => f.id !== feedback.id));
     }, 8000);
@@ -340,7 +460,6 @@ export class MibPanelService {
     list.push(callback);
     this.nameWatches.set(key, list);
 
-    // Return unsubscribe function
     return () => {
       const current = this.nameWatches.get(key);
       if (current) {
@@ -358,21 +477,18 @@ export class MibPanelService {
 
   /** Dispatch name-based watches for a change event. */
   private dispatchNameWatches(event: OidChangedEvent): void {
-    // Try fieldName from server (WPF resolves OID → name)
     const serverName = event.fieldName?.toLowerCase();
     if (serverName) {
       const cbs = this.nameWatches.get(serverName);
       if (cbs) cbs.forEach(cb => this.safeCallback(cb, event));
     }
 
-    // Try local name map (client-side resolution)
     const localName = this.oidToName.get(event.oid)?.toLowerCase();
     if (localName && localName !== serverName) {
       const cbs = this.nameWatches.get(localName);
       if (cbs) cbs.forEach(cb => this.safeCallback(cb, event));
     }
 
-    // For IDD: the oid itself IS the name
     const oidAsName = event.oid.toLowerCase();
     if (oidAsName !== serverName && oidAsName !== localName) {
       const cbs = this.nameWatches.get(oidAsName);

@@ -12,13 +12,6 @@ export interface TrafficEvent {
   timestamp: string;
 }
 
-export interface TrapEvent {
-  oid: string;
-  sourceIp: string;
-  timestamp: string;
-  variableBindings: Array<{ oid: string; value: string; valueType: string }>;
-}
-
 export interface DeviceStatusEvent {
   deviceId: string;
   deviceName: string;
@@ -57,12 +50,6 @@ export interface SetResult {
   message: string;
 }
 
-export interface TrapBinding {
-  oid: string;
-  value: string;
-  valueType: string;
-}
-
 export interface BulkSetItem {
   oid: string;
   value: string;
@@ -82,37 +69,6 @@ export interface BulkSetItemResult {
   message: string;
 }
 
-export interface MibValidationResult {
-  deviceName: string;
-  files: MibFileValidation[];
-  dependencies: MibFileDependencies[];
-}
-
-export interface MibFileDependencies {
-  fileName: string;
-  moduleName: string;
-  imports: MibDependency[];
-}
-
-export interface MibDependency {
-  moduleName: string;
-  status: 'loaded' | 'standard' | 'missing';
-  providedBy: string;
-}
-
-export interface MibFileValidation {
-  fileName: string;
-  definitionCount: number;
-  issueCount: number;
-  issues: MibValidationIssue[];
-}
-
-export interface MibValidationIssue {
-  severity: string;
-  message: string;
-  context: string;
-}
-
 @Injectable({ providedIn: 'root' })
 export class SignalRService {
   private zone = inject(NgZone);
@@ -125,9 +81,14 @@ export class SignalRService {
   // Connection state
   connectionState = signal<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
 
+  // Fires (with timestamp) each time connection is restored after a drop
+  reconnected = signal<number>(0, { equal: () => false });
+
+  // Reconnect attempt counter — visible to UI for status display
+  reconnectAttempt = signal(0);
+
   // Event signals — always notify (never skip), since these are event streams
   latestTraffic = signal<TrafficEvent | null>(null, { equal: () => false });
-  latestTrap = signal<TrapEvent | null>(null, { equal: () => false });
   latestDeviceStatus = signal<DeviceStatusEvent | null>(null, { equal: () => false });
   latestMibUpdate = signal<MibUpdateEvent | null>(null, { equal: () => false });
   latestOidChanged = signal<OidChangedEvent | null>(null, { equal: () => false });
@@ -164,10 +125,6 @@ export class SignalRService {
         this.zone.run(() => this.latestTraffic.set(data));
       });
 
-      this.hubProxy.on('onTrapReceived', (data: TrapEvent) => {
-        this.zone.run(() => this.latestTrap.set(data));
-      });
-
       this.hubProxy.on('onDeviceStatusChanged', (data: DeviceStatusEvent) => {
         this.zone.run(() => this.latestDeviceStatus.set(data));
       });
@@ -185,9 +142,15 @@ export class SignalRService {
         .start()
         .done(() => {
           this.zone.run(() => {
+            const wasReconnect = this.reconnectAttempts > 0;
             this.reconnectAttempts = 0;
+            this.reconnectAttempt.set(0);
             this.connectionState.set('connected');
             console.log('[SignalR] Connected to', this.serverUrl);
+            if (wasReconnect) {
+              console.log('[SignalR] Reconnected — triggering refresh');
+              this.reconnected.set(Date.now());
+            }
           });
         })
         .fail((err: any) => {
@@ -242,6 +205,7 @@ export class SignalRService {
     const delay = Math.min(3000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
 
+    this.reconnectAttempt.set(this.reconnectAttempts);
     console.log(`[SignalR] Reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts})`);
 
     this.reconnectTimer = setTimeout(() => {
@@ -269,6 +233,11 @@ export class SignalRService {
     return this.hubProxy.invoke('SendIddSet', deviceId, fieldId, value);
   }
 
+  async sendIddBulkSet(deviceId: string, items: BulkSetItem[]): Promise<BulkSetResult> {
+    this.ensureConnected();
+    return this.hubProxy.invoke('SendIddBulkSet', deviceId, items);
+  }
+
   async requestRefresh(deviceId: string): Promise<Record<string, string>> {
     this.ensureConnected();
     return this.hubProxy.invoke('RequestRefresh', deviceId);
@@ -285,16 +254,6 @@ export class SignalRService {
   async getDevices(): Promise<DeviceInfo[]> {
     this.ensureConnected();
     return this.hubProxy.invoke('GetDevices');
-  }
-
-  async sendTrap(trapOid: string, targetIp: string, targetPort: number, bindings: TrapBinding[]): Promise<SetResult> {
-    this.ensureConnected();
-    return this.hubProxy.invoke('SendTrap', trapOid, targetIp, targetPort, bindings);
-  }
-
-  async validateMib(deviceId: string): Promise<MibValidationResult> {
-    this.ensureConnected();
-    return this.hubProxy.invoke('ValidateMib', deviceId);
   }
 
   private ensureConnected(): void {
