@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STP-GHP-001 — Software Test Procedure</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e17;
+    --bg2: #0f1520;
+    --bg3: #141c2e;
+    --surface: #1a2235;
+    --surface2: #1f2a3d;
+    --border: #2a3a55;
+    --border2: #344560;
+    --text: #e2e8f0;
+    --text-dim: #8899b4;
+    --text-muted: #4a5a75;
+    --accent: #3b82f6;
+    --accent2: #60a5fa;
+    --accent-glow: rgba(59,130,246,0.15);
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --orange: #f59e0b;
+    --orange-dim: rgba(245,158,11,0.12);
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.12);
+    --cyan: #06b6d4;
+    --critical: #ef4444;
+    --high: #f59e0b;
+    --normal: #3b82f6;
+    --low: #6b7280;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* SIDEBAR NAV */
+  #sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 260px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 100;
+    padding-bottom: 2rem;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 4px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 1.5rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+    background: var(--bg2);
+    z-index: 1;
+  }
+
+  .sidebar-doc-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .sidebar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .sidebar-nav { padding: 0.75rem 0; }
+
+  .nav-section-label {
+    padding: 0.5rem 1.25rem 0.25rem;
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.45rem 1.25rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 12px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--accent-glow);
+    border-left-color: var(--accent);
+  }
+
+  .nav-item.active {
+    color: var(--accent2);
+    background: var(--accent-glow);
+    border-left-color: var(--accent);
+  }
+
+  .nav-item .nav-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--border2);
+    flex-shrink: 0;
+  }
+
+  .nav-item:hover .nav-dot, .nav-item.active .nav-dot {
+    background: var(--accent);
+  }
+
+  .nav-sub {
+    padding-left: 1.75rem;
+  }
+
+  .nav-sub .nav-item {
+    padding-left: 1rem;
+    font-size: 11px;
+  }
+
+  /* MAIN CONTENT */
+  #main {
+    margin-left: 260px;
+    padding: 0;
+  }
+
+  /* DOCUMENT HEADER */
+  .doc-header {
+    background: linear-gradient(135deg, #0d1628 0%, #0f1e3a 40%, #0a1520 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 3rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .doc-header::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .doc-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--accent-glow);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    margin-bottom: 1.25rem;
+  }
+
+  .header-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .doc-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .doc-subtitle {
+    font-size: 15px;
+    color: var(--text-dim);
+    font-weight: 300;
+    margin-bottom: 2rem;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    max-width: 750px;
+  }
+
+  .meta-cell {
+    background: var(--surface);
+    padding: 0.75rem 1rem;
+  }
+
+  .meta-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .meta-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .meta-value.draft {
+    color: var(--orange);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .meta-value.draft::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+  }
+
+  /* CONTENT SECTIONS */
+  .content {
+    padding: 2rem 3rem;
+  }
+
+  /* SECTION CONTAINERS */
+  .doc-section {
+    margin-bottom: 3rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-glow);
+    border: 1px solid rgba(59,130,246,0.25);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .sub-section {
+    margin-bottom: 2rem;
+  }
+
+  .sub-section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sub-section-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* PROSE */
+  .prose {
+    color: var(--text-dim);
+    font-size: 13.5px;
+    line-height: 1.7;
+    max-width: 720px;
+  }
+
+  /* TABLES */
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead tr {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border2);
+  }
+
+  th {
+    padding: 0.65rem 1rem;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  td {
+    padding: 0.6rem 1rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: rgba(59,130,246,0.04); }
+
+  td strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* TEST CASE CARDS */
+  .tc-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+  }
+
+  .tc-card:hover {
+    border-color: var(--border2);
+  }
+
+  .tc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .tc-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent2);
+    white-space: nowrap;
+  }
+
+  .tc-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .priority-badge {
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .priority-critical {
+    background: var(--red-dim);
+    color: var(--critical);
+    border: 1px solid rgba(239,68,68,0.25);
+  }
+
+  .priority-high {
+    background: var(--orange-dim);
+    color: var(--high);
+    border: 1px solid rgba(245,158,11,0.25);
+  }
+
+  .priority-normal {
+    background: var(--accent-glow);
+    color: var(--normal);
+    border: 1px solid rgba(59,130,246,0.25);
+  }
+
+  .priority-low {
+    background: rgba(107,114,128,0.12);
+    color: var(--low);
+    border: 1px solid rgba(107,114,128,0.25);
+  }
+
+  .tc-toggle {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform 0.2s ease;
+  }
+
+  .tc-body {
+    padding: 1.25rem;
+  }
+
+  .tc-meta-row {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg3);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .tc-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tc-meta-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .tc-meta-val {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .steps-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  /* STEPS TABLE special styling */
+  .steps-table thead tr { background: var(--bg3); }
+  .steps-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+    width: 40px;
+  }
+
+  .steps-table td:nth-child(2) { color: var(--text); }
+
+  .expected-cell {
+    color: var(--green) !important;
+    font-size: 12px;
+  }
+
+  /* CODE BLOCKS */
+  pre {
+    background: #060b14;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #93c5fd;
+    line-height: 1.6;
+  }
+
+  p code {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  /* SUBSYSTEM TABLE TYPES */
+  .tech-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    background: var(--purple-dim);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--purple);
+  }
+
+  /* SECTION GROUP HEADERS */
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 1rem 1.5rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    margin-top: 2rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .group-header-icon {
+    font-size: 16px;
+  }
+
+  .group-header-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .group-header-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg3);
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .group-toggle {
+    color: var(--text-muted);
+    font-size: 11px;
+    transition: transform 0.2s;
+  }
+
+  /* SUMMARY MATRIX */
+  .matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+  }
+
+  .matrix-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.6rem 0.875rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+
+  .matrix-row:hover { background: var(--surface2); }
+
+  .matrix-tc-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    min-width: 85px;
+  }
+
+  .matrix-name {
+    font-size: 12px;
+    color: var(--text-dim);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .type-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 1px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .type-connectivity { background: rgba(6,182,212,0.12); color: #06b6d4; border: 1px solid rgba(6,182,212,0.2); }
+  .type-schema { background: rgba(168,85,247,0.12); color: #a855f7; border: 1px solid rgba(168,85,247,0.2); }
+  .type-monitoring { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+  .type-display { background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.2); }
+  .type-snmp { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+  .type-idd { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .type-dirty { background: rgba(251,146,60,0.12); color: #fb923c; border: 1px solid rgba(251,146,60,0.2); }
+  .type-bulk { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+  .type-protocol { background: rgba(6,182,212,0.12); color: #06b6d4; border: 1px solid rgba(6,182,212,0.2); }
+  .type-automation { background: rgba(139,92,246,0.12); color: #8b5cf6; border: 1px solid rgba(139,92,246,0.2); }
+  .type-ui { background: rgba(99,102,241,0.12); color: #6366f1; border: 1px solid rgba(99,102,241,0.2); }
+  .type-error { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+  .type-field { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+  .type-oid { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+
+  .stat-block {
+    flex: 1;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .stat-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  /* PASS/FAIL */
+  .criteria-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .criteria-card {
+    padding: 1.25rem;
+    border-radius: 8px;
+    border: 1px solid;
+  }
+
+  .criteria-card.pass {
+    background: var(--green-dim);
+    border-color: rgba(16,185,129,0.25);
+  }
+
+  .criteria-card.conditional {
+    background: var(--orange-dim);
+    border-color: rgba(245,158,11,0.25);
+  }
+
+  .criteria-card.fail {
+    background: var(--red-dim);
+    border-color: rgba(239,68,68,0.25);
+  }
+
+  .criteria-verdict {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .criteria-card.pass .criteria-verdict { color: var(--green); }
+  .criteria-card.conditional .criteria-verdict { color: var(--orange); }
+  .criteria-card.fail .criteria-verdict { color: var(--red); }
+
+  .criteria-text {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* EXECUTION LOG */
+  .log-table td { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .log-placeholder { color: var(--text-muted) !important; font-style: italic; }
+
+  /* COLLAPSIBLE */
+  .collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  /* DIVIDER */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+
+  /* ABBR TABLE */
+  .abbr-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--accent2);
+    width: 80px;
+  }
+
+  /* REF TABLE */
+  .ref-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 50px;
+  }
+
+  /* FOOTER */
+  .doc-footer {
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg2);
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+    .content { padding: 1.5rem; }
+    .doc-header { padding: 2rem 1.5rem; }
+    .criteria-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-doc-id">STP-GHP-001</div>
+    <div class="sidebar-title">Generic Hardware Panel Test Procedure</div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section-label">Document</div>
+    <a class="nav-item" href="#sec-intro"><span class="nav-dot"></span>1. Introduction</a>
+    <a class="nav-item" href="#sec-env"><span class="nav-dot"></span>2. Test Environment</a>
+
+    <div class="nav-section-label">Test Cases</div>
+    <a class="nav-item" href="#tc-31"><span class="nav-dot"></span>3.1 SignalR Connectivity</a>
+    <a class="nav-item" href="#tc-32"><span class="nav-dot"></span>3.2 Device Discovery</a>
+    <a class="nav-item" href="#tc-33"><span class="nav-dot"></span>3.3 Real-Time Monitoring</a>
+    <a class="nav-item" href="#tc-34"><span class="nav-dot"></span>3.4 Field Display</a>
+    <a class="nav-item" href="#tc-35"><span class="nav-dot"></span>3.5 Monitor Cards</a>
+    <a class="nav-item" href="#tc-36"><span class="nav-dot"></span>3.6 Controls</a>
+    <a class="nav-item" href="#tc-37"><span class="nav-dot"></span>3.7 Tables</a>
+    <a class="nav-item" href="#tc-38"><span class="nav-dot"></span>3.8 Single SET (SNMP)</a>
+    <a class="nav-item" href="#tc-39"><span class="nav-dot"></span>3.9 Single SET (IDD)</a>
+    <a class="nav-item" href="#tc-310"><span class="nav-dot"></span>3.10 Dirty Tracking</a>
+    <a class="nav-item" href="#tc-311"><span class="nav-dot"></span>3.11 Bulk SET</a>
+    <a class="nav-item" href="#tc-312"><span class="nav-dot"></span>3.12 SNMP Protocol</a>
+    <a class="nav-item" href="#tc-313"><span class="nav-dot"></span>3.13 Automation</a>
+    <a class="nav-item" href="#tc-314"><span class="nav-dot"></span>3.14 UI Interaction</a>
+    <a class="nav-item" href="#tc-315"><span class="nav-dot"></span>3.15 Error Handling</a>
+    <a class="nav-item" href="#tc-316"><span class="nav-dot"></span>3.16 Enum / Toggle</a>
+    <a class="nav-item" href="#tc-317"><span class="nav-dot"></span>3.17 OID Watch</a>
+    <a class="nav-item" href="#tc-318"><span class="nav-dot"></span>3.18 System Architecture Page</a>
+    <a class="nav-item" href="#tc-319"><span class="nav-dot"></span>3.19 System Tree</a>
+
+    <div class="nav-section-label">Summary</div>
+    <a class="nav-item" href="#sec-matrix"><span class="nav-dot"></span>4. Test Matrix</a>
+    <a class="nav-item" href="#sec-criteria"><span class="nav-dot"></span>5. Pass/Fail Criteria</a>
+    <a class="nav-item" href="#sec-log"><span class="nav-dot"></span>6. Execution Log</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- DOCUMENT HEADER -->
+  <div class="doc-header">
+    <div class="header-badge">Draft — v1.0</div>
+    <h1 class="doc-title">Software Test Procedure</h1>
+    <div class="doc-subtitle">Generic Hardware Panel — NMS / NMSClient Management System</div>
+    <div class="meta-grid">
+      <div class="meta-cell">
+        <div class="meta-label">Document ID</div>
+        <div class="meta-value" style="font-family:'JetBrains Mono',monospace;color:var(--accent2)">STP-GHP-001</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Version</div>
+        <div class="meta-value">1.1</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Date</div>
+        <div class="meta-value">2026-03-18</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Author</div>
+        <div class="meta-value">Lior Shilman</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Project</div>
+        <div class="meta-value" style="font-size:12px">NMS — Generic Hardware &amp; IDD Panel</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Status</div>
+        <div class="meta-value draft">Draft</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- SECTION 1 -->
+    <div class="doc-section" id="sec-intro">
+      <div class="section-header">
+        <span class="section-number">§1</span>
+        <span class="section-title">Introduction</span>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">1.1 Purpose</div>
+        <p class="prose">This document defines the Software Test Procedure (STP) for the Generic Hardware Panel system. The system provides a unified web-based management interface for hardware devices that communicate via SNMP (v2c / v3) or IDD (Interface Design Document) protocols. It covers real-time monitoring, configuration (SET), bulk operations, automation, connectivity resilience, a graphical System Architecture Page with live hardware status, and a hierarchical System Tree covering all hardware and MCC/GCC interfaces.</p>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">1.2 Scope</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Subsystem</th><th>Technology</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><strong>NMSClient (UI)</strong></td><td><span class="tech-pill">Angular 19 / TypeScript</span></td><td>MIB panel, device cards, config editor, bulk SET, architecture page, system tree</td></tr>
+              <tr><td><strong>NMS (Server)</strong></td><td><span class="tech-pill">.NET Framework 4.7.2</span></td><td>SignalR hub, SNMP engine, IDD dispatch, schema builder</td></tr>
+              <tr><td><strong>SignalR Communication</strong></td><td><span class="tech-pill">SignalR 2.x (jQuery)</span></td><td>Bidirectional real-time messaging on port <code>20201</code></td></tr>
+              <tr><td><strong>SNMP Engine</strong></td><td><span class="tech-pill">SnmpSharpNet</span></td><td>GET, SET, WALK (v2c + v3)</td></tr>
+              <tr><td><strong>IDD Engine</strong></td><td><span class="tech-pill">Custom event dispatch</span></td><td>Non-SNMP field management</td></tr>
+              <tr><td><strong>SNMPSim (Simulator)</strong></td><td><span class="tech-pill">SNMPSim / optional</span></td><td>Offline simulation for all hardware units — BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, GST×9</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">1.3 References</div>
+        <div class="table-wrap">
+          <table class="ref-table">
+            <thead><tr><th>Ref</th><th>Document</th></tr></thead>
+            <tbody>
+              <tr><td>[R1]</td><td>SNMPv2c / SNMPv3 RFCs (3411–3418)</td></tr>
+              <tr><td>[R2]</td><td>SignalR 2.x Documentation (ASP.NET)</td></tr>
+              <tr><td>[R3]</td><td>SnmpSharpNet Library API</td></tr>
+              <tr><td>[R4]</td><td>Angular Signals &amp; Standalone Components Docs</td></tr>
+              <tr><td>[R5]</td><td>Project source: SNMPSimMgr-Integration</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">1.4 Abbreviations</div>
+        <div class="table-wrap">
+          <table class="abbr-table">
+            <thead><tr><th>Abbr</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td>STP</td><td>Software Test Procedure</td></tr>
+              <tr><td>SNMP</td><td>Simple Network Management Protocol</td></tr>
+              <tr><td>MIB</td><td>Management Information Base</td></tr>
+              <tr><td>OID</td><td>Object Identifier</td></tr>
+              <tr><td>IDD</td><td>Interface Design Document</td></tr>
+              <tr><td>SET</td><td>SNMP write operation</td></tr>
+              <tr><td>GET</td><td>SNMP read operation</td></tr>
+              <tr><td>WALK</td><td>SNMP tree traversal (GETNEXT sequence)</td></tr>
+              <tr><td>SUT</td><td>System Under Test</td></tr>
+              <tr><td>DUT</td><td>Device Under Test</td></tr>
+              <tr><td>UI</td><td>User Interface (NMSClient)</td></tr>
+              <tr><td>NMS</td><td>Network Management System (WPF server backend)</td></tr>
+              <tr><td>NMSClient</td><td>Angular-based web UI frontend</td></tr>
+              <tr><td>BUC</td><td>Block Up-Converter</td></tr>
+              <tr><td>ACU</td><td>Antenna Control Unit</td></tr>
+              <tr><td>OSA</td><td>Optical Spectrum Analyzer</td></tr>
+              <tr><td>GST</td><td>Ground Station Terminal (×9 units)</td></tr>
+              <tr><td>MCC</td><td>Master Control Center</td></tr>
+              <tr><td>GCC</td><td>Ground Control Center</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2 -->
+    <div class="doc-section" id="sec-env">
+      <div class="section-header">
+        <span class="section-number">§2</span>
+        <span class="section-title">Test Environment</span>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">2.1 Hardware</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Item</th><th>Specification</th></tr></thead>
+            <tbody>
+              <tr><td>Test Workstation</td><td>Windows 10 Pro, 8 GB RAM minimum</td></tr>
+              <tr><td><strong>BUC</strong> — Block Up-Converter</td><td>SNMPv2c/v3 capable, LAN reachable</td></tr>
+              <tr><td><strong>PIRANHA</strong></td><td>SNMPv2c/v3 capable, LAN reachable</td></tr>
+              <tr><td><strong>SPLITTER</strong></td><td>SNMPv2c/v3 or IDD managed</td></tr>
+              <tr><td><strong>COMBINER</strong></td><td>SNMPv2c/v3 or IDD managed</td></tr>
+              <tr><td><strong>ACU</strong> — Antenna Control Unit</td><td>SNMPv2c/v3 or IDD managed</td></tr>
+              <tr><td><strong>OSA</strong> — Optical Spectrum Analyzer</td><td>SNMPv2c/v3 or IDD managed</td></tr>
+              <tr><td><strong>GST ×9</strong> — Ground Station Terminals</td><td>9 units, SNMPv2c/v3, LAN reachable (or simulated)</td></tr>
+              <tr><td>Network</td><td>LAN connectivity to all DUT devices (SNMP port 161/UDP)</td></tr>
+              <tr><td>SNMPSim <em>(optional)</em></td><td>Offline simulation mode — enables all hardware units to be tested without physical connectivity</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">2.2 Software</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Component</th><th>Version / Notes</th></tr></thead>
+            <tbody>
+              <tr><td>NMS</td><td><code>NMS (.NET Framework 4.7.2, WPF)</code></td></tr>
+              <tr><td>NMSClient</td><td><code>NMSClient (Angular 19, Node.js &gt;= 20.12)</code></td></tr>
+              <tr><td>Browser</td><td>Chrome / Edge (latest)</td></tr>
+              <tr><td>SignalR Server</td><td>Hosted by NMS on port <code>20201</code></td></tr>
+              <tr><td>SNMPSim <em>(optional)</em></td><td>All hardware units simulatable — BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, GST×9</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub-section">
+        <div class="sub-section-title">2.3 Prerequisites</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Prerequisite</th></tr></thead>
+            <tbody>
+              <tr><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);width:40px;text-align:center">1</td><td>NMS application running with at least one device profile configured.</td></tr>
+              <tr><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);text-align:center">2</td><td>NMSClient served (default: <code>http://localhost:4200</code>).</td></tr>
+              <tr><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);text-align:center">3</td><td>Network connectivity between workstation and DUT(s): BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, GST×9.</td></tr>
+              <tr><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);text-align:center">4</td><td>At least one MIB file loaded for the SNMP device, <strong>or</strong> IDD field definitions configured.</td></tr>
+              <tr><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);text-align:center">5</td><td>SNMPSim available for offline simulation testing (optional) — supports all hardware types above.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3 - TEST CASES -->
+    <div class="doc-section">
+      <div class="section-header">
+        <span class="section-number">§3</span>
+        <span class="section-title">Test Cases</span>
+      </div>
+
+      <!-- 3.1 SignalR -->
+      <div id="tc-31">
+        <div class="group-header" onclick="toggleGroup('g31')">
+          <span class="group-header-icon">🔌</span>
+          <span class="group-header-title">3.1 — SignalR Connectivity</span>
+          <span class="group-header-count">3 cases</span>
+          <span class="group-toggle" id="arrow-g31">▼</span>
+        </div>
+        <div id="g31" class="collapsible-content">
+
+          <!-- TC-3.1.1 -->
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc311')">
+              <span class="tc-id">TC-3.1.1</span>
+              <span class="tc-name">Initial Connection</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc311">▼</span>
+            </div>
+            <div id="tc311" class="tc-body">
+              <div class="tc-meta-row">
+                <div class="tc-meta-item">
+                  <div class="tc-meta-label">Precondition</div>
+                  <div class="tc-meta-val">WPF application running with SignalR on port 5050. Angular client loaded in browser.</div>
+                </div>
+              </div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap">
+                <table class="steps-table">
+                  <thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>Open Angular client in browser</td><td class="expected-cell">Connection status indicator shows "Connecting"</td></tr>
+                    <tr><td>2</td><td>Wait for connection to establish</td><td class="expected-cell">Status changes to "Connected" (green indicator)</td></tr>
+                    <tr><td>3</td><td>Verify browser console</td><td class="expected-cell">Log: <code>[SignalR] Connected to http://localhost:20201</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TC-3.1.2 -->
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc312')">
+              <span class="tc-id">TC-3.1.2</span>
+              <span class="tc-name">Reconnection After Server Restart</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc312">▼</span>
+            </div>
+            <div id="tc312" class="tc-body">
+              <div class="tc-meta-row">
+                <div class="tc-meta-item">
+                  <div class="tc-meta-label">Precondition</div>
+                  <div class="tc-meta-val">Angular client connected to WPF server.</div>
+                </div>
+              </div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap">
+                <table class="steps-table">
+                  <thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>Stop the WPF application</td><td class="expected-cell">UI status changes to "Disconnected"</td></tr>
+                    <tr><td>2</td><td>Observe reconnect attempts</td><td class="expected-cell">Console shows exponential backoff: 3s, 6s, 12s, 24s, max 30s. Reconnect attempt counter increments.</td></tr>
+                    <tr><td>3</td><td>Restart the WPF application</td><td class="expected-cell">UI auto-reconnects. Status returns to "Connected".</td></tr>
+                    <tr><td>4</td><td>If a device was loaded, verify values refresh automatically</td><td class="expected-cell">Panel values update without manual action. Console: <code>[MibPanel] Connection restored — auto-refreshing values</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TC-3.1.3 -->
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc313')">
+              <span class="tc-id">TC-3.1.3</span>
+              <span class="tc-name">Explicit Disconnect</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc313">▼</span>
+            </div>
+            <div id="tc313" class="tc-body">
+              <div class="tc-meta-row">
+                <div class="tc-meta-item">
+                  <div class="tc-meta-label">Precondition</div>
+                  <div class="tc-meta-val">Angular client connected.</div>
+                </div>
+              </div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap">
+                <table class="steps-table">
+                  <thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>Trigger disconnect (if UI button exists, or programmatically)</td><td class="expected-cell">Status changes to "Disconnected"</td></tr>
+                    <tr><td>2</td><td>Wait 60 seconds</td><td class="expected-cell">No reconnect attempts are made (stopped flag active)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /g31 -->
+      </div>
+
+      <!-- 3.2 Device Discovery -->
+      <div id="tc-32">
+        <div class="group-header" onclick="toggleGroup('g32')">
+          <span class="group-header-icon">🗂</span>
+          <span class="group-header-title">3.2 — Device Discovery &amp; Schema Loading</span>
+          <span class="group-header-count">5 cases</span>
+          <span class="group-toggle" id="arrow-g32">▼</span>
+        </div>
+        <div id="g32" class="collapsible-content">
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc321')">
+              <span class="tc-id">TC-3.2.1</span>
+              <span class="tc-name">Load Device List</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc321">▼</span>
+            </div>
+            <div id="tc321" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Connected. At least one device profile exists in <code>Data/devices.json</code>.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe device card grid in sidebar</td><td class="expected-cell">All configured devices appear as cards</td></tr>
+                <tr><td>2</td><td>Verify each card shows: name, IP, port</td><td class="expected-cell">Correct values per device profile</td></tr>
+                <tr><td>3</td><td>If a simulator is running, verify indicator</td><td class="expected-cell">Card shows "Simulating" badge with simulator port</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc322')">
+              <span class="tc-id">TC-3.2.2</span>
+              <span class="tc-name">Load SNMP Device Schema</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc322">▼</span>
+            </div>
+            <div id="tc322" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Connected. SNMP device with MIB files configured.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Click on an SNMP device card</td><td class="expected-cell">Loading spinner appears</td></tr>
+                <tr><td>2</td><td>Wait for schema to load</td><td class="expected-cell">Panel displays modules, each with sections (Monitoring, Configuration)</td></tr>
+                <tr><td>3</td><td>Verify scalar fields have current values</td><td class="expected-cell">Values populated from live device (via RequestRefresh)</td></tr>
+                <tr><td>4</td><td>Verify table data (if MIB defines tables)</td><td class="expected-cell">Tables rendered with rows, columns, and cell values</td></tr>
+                <tr><td>5</td><td>Check module tabs at top</td><td class="expected-cell">Tabs correspond to MIB module names</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc323')">
+              <span class="tc-id">TC-3.2.3</span>
+              <span class="tc-name">Load IDD Device Schema</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc323">▼</span>
+            </div>
+            <div id="tc323" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Connected. Device profile has <code>IddFields</code> defined (<code>IsIddDevice = true</code>).</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Click on an IDD device card</td><td class="expected-cell">Loading spinner appears</td></tr>
+                <tr><td>2</td><td>Wait for schema to load</td><td class="expected-cell">Panel displays IDD groups as module sections</td></tr>
+                <tr><td>3</td><td>Verify fields show names, types, descriptions</td><td class="expected-cell">Match IddFieldDef definitions</td></tr>
+                <tr><td>4</td><td>Verify writable fields have edit controls</td><td class="expected-cell">Edit button/input visible for isWritable = true</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc324')">
+              <span class="tc-id">TC-3.2.4</span>
+              <span class="tc-name">Schema Caching</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc324">▼</span>
+            </div>
+            <div id="tc324" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device loaded once.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Switch to a different device, then switch back</td><td class="expected-cell">Schema loads significantly faster (cache hit)</td></tr>
+                <tr><td>2</td><td>Verify console: no MIB parsing log on second load</td><td class="expected-cell">Hub uses cached schema</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc325')">
+              <span class="tc-id">TC-3.2.5</span>
+              <span class="tc-name">Load Schema from Pre-Built JSON</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc325">▼</span>
+            </div>
+            <div id="tc325" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device profile has <code>SchemaPath</code> set to a valid JSON file.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Click on device card</td><td class="expected-cell">Schema loads from JSON file (no MIB parsing)</td></tr>
+                <tr><td>2</td><td>Verify all modules, fields, tables</td><td class="expected-cell">Match the pre-built JSON content</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+        </div><!-- /g32 -->
+      </div>
+
+      <!-- 3.3 Real-Time Monitoring -->
+      <div id="tc-33">
+        <div class="group-header" onclick="toggleGroup('g33')">
+          <span class="group-header-icon">📡</span>
+          <span class="group-header-title">3.3 — Real-Time Monitoring</span>
+          <span class="group-header-count">4 cases</span>
+          <span class="group-toggle" id="arrow-g33">▼</span>
+        </div>
+        <div id="g33" class="collapsible-content">
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc331')">
+              <span class="tc-id">TC-3.3.1</span><span class="tc-name">Periodic WALK Updates</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc331">▼</span>
+            </div>
+            <div id="tc331" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device schema loaded. Periodic walk is running (auto-started).</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe panel values over 30 seconds</td><td class="expected-cell">Values update automatically every ~10 seconds</td></tr>
+                <tr><td>2</td><td>Change a value on the real hardware (e.g., sysContact via CLI)</td><td class="expected-cell">New value appears on panel within one walk cycle</td></tr>
+                <tr><td>3</td><td>Check console for MIB update logs</td><td class="expected-cell"><code>[MibPanel] MIB batch update: N OIDs</code></td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc332')">
+              <span class="tc-id">TC-3.3.2</span><span class="tc-name">Traffic Event Display</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc332">▼</span>
+            </div>
+            <div id="tc332" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Perform a GET or SET on the device</td><td class="expected-cell">Traffic event signal fires</td></tr>
+                <tr><td>2</td><td>Verify event contains: deviceName, operation, oid, value, sourceIp</td><td class="expected-cell">All fields populated correctly</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc333')">
+              <span class="tc-id">TC-3.3.3</span><span class="tc-name">OID Change Detection</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc333">▼</span>
+            </div>
+            <div id="tc333" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded. Periodic walk running.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Change a field value on the hardware</td><td class="expected-cell">After next walk cycle, <code>onOidChanged</code> event fires</td></tr>
+                <tr><td>2</td><td>Verify event contains: oid, fieldName, newValue, previousValue</td><td class="expected-cell">All values correct. fieldName resolved from schema name map.</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card">
+            <div class="tc-header" onclick="toggleTC('tc334')">
+              <span class="tc-id">TC-3.3.4</span><span class="tc-name">Selective Subtree WALK</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc334">▼</span>
+            </div>
+            <div id="tc334" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device loaded.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Invoke <code>RequestSelectiveWalk</code> with specific OID subtrees</td><td class="expected-cell">Only the specified subtrees are walked</td></tr>
+                <tr><td>2</td><td>Verify returned values are within the subtree range</td><td class="expected-cell">No OIDs outside the requested subtrees</td></tr>
+                <tr><td>3</td><td>Start selective periodic walk with subtree OIDs</td><td class="expected-cell">Walk repeats at interval, covering only specified subtrees</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 3.4 Field Display -->
+      <div id="tc-34">
+        <div class="group-header" onclick="toggleGroup('g34')">
+          <span class="group-header-icon">🖥</span>
+          <span class="group-header-title">3.4 — Field Display &amp; Classification</span>
+          <span class="group-header-count">4 cases</span>
+          <span class="group-toggle" id="arrow-g34">▼</span>
+        </div>
+        <div id="g34" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc341')"><span class="tc-id">TC-3.4.1</span><span class="tc-name">Device Identity Header</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc341">▼</span></div>
+          <div id="tc341" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with identity fields (sysName, model, firmware, etc.).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe header card</td><td class="expected-cell">Shows device name, model, firmware, serial, MAC, uptime</td></tr><tr><td>2</td><td>Verify uptime formatting</td><td class="expected-cell">Displayed as "Xd Xh Xm Xs" (human-readable)</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc342')"><span class="tc-id">TC-3.4.2</span><span class="tc-name">Status Fields Color Coding</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc342">▼</span></div>
+          <div id="tc342" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with status/enum fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe monitoring section fields</td><td class="expected-cell">Enum values resolved to labels (e.g., 1 → "up")</td></tr><tr><td>2</td><td>Verify color coding</td><td class="expected-cell">OK = green, Warning = amber, Alarm/Error = red, Off/Disabled = gray</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc343')"><span class="tc-id">TC-3.4.3</span><span class="tc-name">Counter &amp; Gauge Display</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc343">▼</span></div>
+          <div id="tc343" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with counter/gauge fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe counter fields</td><td class="expected-cell">Values formatted with units (if defined)</td></tr><tr><td>2</td><td>After a walk cycle, verify counter increments</td><td class="expected-cell">New value displayed correctly</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc344')"><span class="tc-id">TC-3.4.4</span><span class="tc-name">Table Display</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc344">▼</span></div>
+          <div id="tc344" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with table data (e.g., ifTable).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe table section</td><td class="expected-cell">Columns match MIB column definitions</td></tr><tr><td>2</td><td>Verify row labels</td><td class="expected-cell">Label column (e.g., ifDescr) used as row identifier</td></tr><tr><td>3</td><td>Verify cell values</td><td class="expected-cell">Match live device values</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.5 Monitor Cards -->
+      <div id="tc-35">
+        <div class="group-header" onclick="toggleGroup('g35')">
+          <span class="group-header-icon">📊</span>
+          <span class="group-header-title">3.5 — Monitors — Real-Time Status &amp; Metrics</span>
+          <span class="group-header-count">7 cases</span>
+          <span class="group-toggle" id="arrow-g35">▼</span>
+        </div>
+        <div id="g35" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc351')"><span class="tc-id">TC-3.5.1</span><span class="tc-name">Monitor Card Grid Layout</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc351">▼</span></div><div id="tc351" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device loaded. Module has status/counter/gauge scalar fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe the MONITORING section within a module</td><td class="expected-cell">Section header shows green accent, "MONITORING" title, and field count badge</td></tr><tr><td>2</td><td>Verify cards displayed in responsive grid (3–4 columns)</td><td class="expected-cell">Cards adapt to panel width</td></tr><tr><td>3</td><td>Each card shows: field name, current value, unit (if defined)</td><td class="expected-cell">All elements visible and correctly formatted</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc352')"><span class="tc-id">TC-3.5.2</span><span class="tc-name">Status Enum Color Coding</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc352">▼</span></div><div id="tc352" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with enum-based status fields (e.g., ifOperStatus: up/down).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe card with status "up" / "active" / "ok" / "running"</td><td class="expected-cell">Green left border + green pill badge</td></tr><tr><td>2</td><td>Observe card with status "down" / "error" / "critical" / "offline"</td><td class="expected-cell">Red left border + red pill badge</td></tr><tr><td>3</td><td>Observe card with status "warning" / "degraded" / "standby"</td><td class="expected-cell">Orange left border + orange pill badge</td></tr><tr><td>4</td><td>Observe card with status "disabled" / "off"</td><td class="expected-cell">Gray left border + gray pill badge</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc353')"><span class="tc-id">TC-3.5.3</span><span class="tc-name">Status LED Indicator (Pulse Animation)</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc353">▼</span></div><div id="tc353" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Field with <code>inputType: status-led</code> present.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe LED dot on status-led field with "ok" status</td><td class="expected-cell">Green LED with subtle glow shadow</td></tr><tr><td>2</td><td>Observe LED dot on field with "error" status</td><td class="expected-cell">Red LED with pulsing animation</td></tr><tr><td>3</td><td>Observe LED dot on field with "warn" status</td><td class="expected-cell">Orange LED with glow</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc354')"><span class="tc-id">TC-3.5.4</span><span class="tc-name">Counter &amp; Gauge Formatting</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc354">▼</span></div><div id="tc354" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with counter/gauge fields with large values.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe counter field with value &gt; 1000</td><td class="expected-cell">Formatted as "1.2K"</td></tr><tr><td>2</td><td>Observe counter field with value &gt; 1,000,000</td><td class="expected-cell">Formatted as "5.6M"</td></tr><tr><td>3</td><td>Observe counter field with value &gt; 1,000,000,000</td><td class="expected-cell">Formatted as "9.2G"</td></tr><tr><td>4</td><td>Verify counter icon (⟳) and blue card border</td><td class="expected-cell">Visually distinct from status fields</td></tr><tr><td>5</td><td>Verify gauge icon (◔)</td><td class="expected-cell">Gauge cards identifiable</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc355')"><span class="tc-id">TC-3.5.5</span><span class="tc-name">TimeTicks Uptime Display</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc355">▼</span></div><div id="tc355" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with sysUpTime or similar TimeTicks field.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe uptime field</td><td class="expected-cell">Formatted as "Xd Xh Xm Xs" (e.g., "2d 5h 3m 12s")</td></tr><tr><td>2</td><td>Verify ⏱ icon and teal text styling</td><td class="expected-cell">Uptime card visually distinct</td></tr><tr><td>3</td><td>After a walk cycle, verify uptime increments</td><td class="expected-cell">Value increases between cycles</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc356')"><span class="tc-id">TC-3.5.6</span><span class="tc-name">Monitor Live Update (No User Interaction)</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc356">▼</span></div><div id="tc356" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded, periodic walk running.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe monitoring section for 30+ seconds without interaction</td><td class="expected-cell">Values update automatically each walk cycle (~10s)</td></tr><tr><td>2</td><td>Change a counter on hardware (e.g., send traffic to increment ifInOctets)</td><td class="expected-cell">Counter value increases on next walk cycle</td></tr><tr><td>3</td><td>Change a status field on hardware (e.g., disable an interface)</td><td class="expected-cell">Status pill changes from "up" (green) → "down" (red)</td></tr><tr><td>4</td><td>Verify no flickering or layout shift during updates</td><td class="expected-cell">Smooth value replacement</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc357')"><span class="tc-id">TC-3.5.7</span><span class="tc-name">Monitor Health Summary</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc357">▼</span></div><div id="tc357" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Module with multiple status fields in different states.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe section header summary</td><td class="expected-cell">Shows "X OK / Y Warn / Z Alarm" counts</td></tr><tr><td>2</td><td>Change a field from "up" to "down"</td><td class="expected-cell">OK count decreases, Alarm count increases</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.6 Controls -->
+      <div id="tc-36">
+        <div class="group-header" onclick="toggleGroup('g36')">
+          <span class="group-header-icon">⚙️</span>
+          <span class="group-header-title">3.6 — Controls — Configuration &amp; Editing</span>
+          <span class="group-header-count">8 cases</span>
+          <span class="group-toggle" id="arrow-g36">▼</span>
+        </div>
+        <div id="g36" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc361')"><span class="tc-id">TC-3.6.1</span><span class="tc-name">Configuration Section Display</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc361">▼</span></div><div id="tc361" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded. Module has writable scalar fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe CONFIGURATION section</td><td class="expected-cell">Section header shows blue accent, "⚙ CONFIGURATION" title, field count</td></tr><tr><td>2</td><td>Each control row shows: field name (human-readable), current value, access badge (RW)</td><td class="expected-cell">All elements visible</td></tr><tr><td>3</td><td>Verify non-writable fields in this section show RO badge</td><td class="expected-cell">Access level correctly displayed</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc362')"><span class="tc-id">TC-3.6.2</span><span class="tc-name">Text Field Edit &amp; Send</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc362">▼</span></div><div id="tc362" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable text field visible (e.g., sysContact).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click Edit (pencil icon) on the field</td><td class="expected-cell">Text input appears with current value pre-filled</td></tr><tr><td>2</td><td>Type a new value</td><td class="expected-cell">Input reflects new text</td></tr><tr><td>3</td><td>Click "Send" (blue button)</td><td class="expected-cell">Feedback toast: pending → success. Field value updates.</td></tr><tr><td>4</td><td>Click Edit, then click "Cancel" (X)</td><td class="expected-cell">Edit mode exits, no change sent</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc363')"><span class="tc-id">TC-3.6.3</span><span class="tc-name">Number Field with Min/Max</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc363">▼</span></div><div id="tc363" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable number field with min/max constraints defined.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click Edit</td><td class="expected-cell">Number input with spinner appears, range hint shown</td></tr><tr><td>2</td><td>Enter a value within range</td><td class="expected-cell">Stage or Send succeeds</td></tr><tr><td>3</td><td>Enter a value outside range</td><td class="expected-cell">Input shows validation hint (min/max displayed)</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc364')"><span class="tc-id">TC-3.6.4</span><span class="tc-name">Enum Dropdown Edit</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc364">▼</span></div><div id="tc364" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable enum field with options (e.g., adminStatus: up(1)/down(2)).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click Edit</td><td class="expected-cell">Dropdown select appears with all options listed as "Label (value)"</td></tr><tr><td>2</td><td>Select a different option</td><td class="expected-cell">Selected option highlighted</td></tr><tr><td>3</td><td>Click "Send"</td><td class="expected-cell">Numeric value sent (e.g., "2" for "down"), not the label</td></tr><tr><td>4</td><td>Verify display after send</td><td class="expected-cell">Shows resolved label (e.g., "down") not raw number</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc365')"><span class="tc-id">TC-3.6.5</span><span class="tc-name">Toggle Switch (Boolean Field)</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc365">▼</span></div><div id="tc365" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Toggle field visible (2-option enum, e.g., enabled/disabled).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe toggle in ON state</td><td class="expected-cell">Green/active toggle slider</td></tr><tr><td>2</td><td>Click toggle to switch OFF</td><td class="expected-cell">Animated slide transition. SET sent with "off" value.</td></tr><tr><td>3</td><td>Click toggle to switch ON</td><td class="expected-cell">Animated slide transition. SET sent with "on" value.</td></tr><tr><td>4</td><td>Verify feedback toast for each toggle</td><td class="expected-cell">pending → success</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc366')"><span class="tc-id">TC-3.6.6</span><span class="tc-name">IP Address Field</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc366">▼</span></div><div id="tc366" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable IP address field visible.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click Edit</td><td class="expected-cell">Input appears with placeholder "0.0.0.0"</td></tr><tr><td>2</td><td>Enter valid IP (e.g., "192.168.1.100")</td><td class="expected-cell">Value accepted</td></tr><tr><td>3</td><td>Click Send</td><td class="expected-cell">SET sent with valueType "IpAddress"</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc367')"><span class="tc-id">TC-3.6.7</span><span class="tc-name">Friendly Name Display</span><span class="priority-badge priority-low">Low</span><span class="tc-toggle" id="arr-tc367">▼</span></div><div id="tc367" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Fields with camelCase names (e.g., "sysContact", "ifAdminStatus").</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe field names in config section</td><td class="expected-cell">camelCase converted to readable format (e.g., "Sys Contact", "If Admin Status")</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc368')"><span class="tc-id">TC-3.6.8</span><span class="tc-name">Control Field with Units</span><span class="priority-badge priority-low">Low</span><span class="tc-toggle" id="arr-tc368">▼</span></div><div id="tc368" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Field with units defined (e.g., "seconds", "dBm").</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe field display</td><td class="expected-cell">Unit shown alongside value (e.g., "300 seconds")</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.7 Tables -->
+      <div id="tc-37">
+        <div class="group-header" onclick="toggleGroup('g37')">
+          <span class="group-header-icon">▦</span>
+          <span class="group-header-title">3.7 — Tables — MIB Table Display &amp; Cell Editing</span>
+          <span class="group-header-count">9 cases</span>
+          <span class="group-toggle" id="arrow-g37">▼</span>
+        </div>
+        <div id="g37" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc371')"><span class="tc-id">TC-3.7.1</span><span class="tc-name">Table Rendering</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc371">▼</span></div><div id="tc371" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with at least one MIB table (e.g., ifTable, hrStorageTable).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe TABLES section</td><td class="expected-cell">Section header shows purple accent, "▦ TABLES" title, table count</td></tr><tr><td>2</td><td>Verify table header: name, OID, row/column counts</td><td class="expected-cell">All metadata displayed correctly</td></tr><tr><td>3</td><td>Verify column headers match MIB column definitions</td><td class="expected-cell">Column names and order correct</td></tr><tr><td>4</td><td>Verify rows with correct index and label</td><td class="expected-cell">Row label from labelColumn (e.g., ifDescr = "eth0")</td></tr><tr><td>5</td><td>Verify cell values populated</td><td class="expected-cell">Match live device data</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc374')"><span class="tc-id">TC-3.7.4</span><span class="tc-name">Table Cell Edit (Text/Number)</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc374">▼</span></div><div id="tc374" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Table with writable text/number column visible.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Double-click (or click edit button) on a writable cell</td><td class="expected-cell">Inline input appears with current cell value</td></tr><tr><td>2</td><td>Enter a new value</td><td class="expected-cell">Input reflects change</td></tr><tr><td>3</td><td>Click "Save"</td><td class="expected-cell">SET sent with full OID = <code>columnOid.rowIndex</code> (e.g., <code>1.3.6.1.2.1.2.2.1.7.1</code>)</td></tr><tr><td>4</td><td>Verify cell updates</td><td class="expected-cell">New value displayed in cell</td></tr><tr><td>5</td><td>Verify feedback toast</td><td class="expected-cell">pending → success</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc378')"><span class="tc-id">TC-3.7.8</span><span class="tc-name">Table Live Updates via WALK</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc378">▼</span></div><div id="tc378" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Table loaded, periodic walk running.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe table cell values over 30 seconds</td><td class="expected-cell">Cell values update each walk cycle</td></tr><tr><td>2</td><td>Change a table value on hardware</td><td class="expected-cell">Updated on next walk. If status-led, color changes accordingly.</td></tr><tr><td>3</td><td>Verify no layout shift during update</td><td class="expected-cell">Rows and columns remain stable</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.8 Single SET SNMP -->
+      <div id="tc-38">
+        <div class="group-header" onclick="toggleGroup('g38')">
+          <span class="group-header-icon">✏️</span>
+          <span class="group-header-title">3.8 — Single Field SET (SNMP)</span>
+          <span class="group-header-count">3 cases</span>
+          <span class="group-toggle" id="arrow-g38">▼</span>
+        </div>
+        <div id="g38" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc381')"><span class="tc-id">TC-3.8.1</span><span class="tc-name">SET Writable Scalar (Immediate)</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc381">▼</span></div><div id="tc381" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device loaded. Writable field visible in Configuration section.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click edit button on a writable field</td><td class="expected-cell">Input field appears with current value</td></tr><tr><td>2</td><td>Enter a new value</td><td class="expected-cell">Value shown in input</td></tr><tr><td>3</td><td>Click "Send" (blue button)</td><td class="expected-cell">Feedback toast: "pending" → "success"</td></tr><tr><td>4</td><td>Verify field updates in panel</td><td class="expected-cell"><code>currentValue</code> reflects new value</td></tr><tr><td>5</td><td>Verify on hardware (CLI or other tool)</td><td class="expected-cell">Value changed on real device</td></tr><tr><td>6</td><td>Feedback toast auto-removes after 8 seconds</td><td class="expected-cell">Toast disappears</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc382')"><span class="tc-id">TC-3.8.2</span><span class="tc-name">SET with Invalid Value</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc382">▼</span></div><div id="tc382" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable field visible.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Edit a field and enter an invalid value (e.g., string in integer field)</td><td class="expected-cell">Send the value</td></tr><tr><td>2</td><td>Observe feedback</td><td class="expected-cell">Feedback toast: "pending" → "error" with descriptive message</td></tr><tr><td>3</td><td>Verify field value unchanged</td><td class="expected-cell"><code>currentValue</code> retains original value</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc383')"><span class="tc-id">TC-3.8.3</span><span class="tc-name">SET When Disconnected</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc383">▼</span></div><div id="tc383" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Disconnect from server.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Attempt to send a SET</td><td class="expected-cell">Feedback toast: "error" — "Not connected to server"</td></tr><tr><td>2</td><td>SET controls may be disabled</td><td class="expected-cell"><code>isConnected</code> computed = false</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.9 IDD SET -->
+      <div id="tc-39">
+        <div class="group-header" onclick="toggleGroup('g39')">
+          <span class="group-header-icon">🔀</span>
+          <span class="group-header-title">3.9 — Single Field SET (IDD)</span>
+          <span class="group-header-count">2 cases</span>
+          <span class="group-toggle" id="arrow-g39">▼</span>
+        </div>
+        <div id="g39" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc391')"><span class="tc-id">TC-3.9.1</span><span class="tc-name">IDD Field SET</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc391">▼</span></div><div id="tc391" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">IDD device loaded. Writable IDD field visible.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Edit an IDD field and click "Send"</td><td class="expected-cell">Feedback toast: "pending" → "success" ("IDD SET dispatched")</td></tr><tr><td>2</td><td>Verify WPF received the event</td><td class="expected-cell">Debug output: <code>[SnmpHub] SendIddSet: device=..., field=..., value=...</code></td></tr><tr><td>3</td><td>Verify <code>Simulator.RaiseIddSet</code> was called</td><td class="expected-cell">WPF event handler processes the IDD write</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc392')"><span class="tc-id">TC-3.9.2</span><span class="tc-name">IDD vs SNMP Routing</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc392">▼</span></div><div id="tc392" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with mixed SNMP + IDD fields (if applicable).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Send SET on a numeric OID field (e.g., <code>1.3.6.1.2.1.1.4.0</code>)</td><td class="expected-cell">Routed via <code>sendSet</code> → SNMP SET on hardware</td></tr><tr><td>2</td><td>Send SET on a named field (e.g., <code>alarm-indicator</code>)</td><td class="expected-cell">Routed via <code>sendIddSet</code> → <code>RaiseIddSet</code> event</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.10 Dirty Tracking -->
+      <div id="tc-310">
+        <div class="group-header" onclick="toggleGroup('g310')">
+          <span class="group-header-icon">🟠</span>
+          <span class="group-header-title">3.10 — Dirty Tracking &amp; Staged Edits</span>
+          <span class="group-header-count">3 cases</span>
+          <span class="group-toggle" id="arrow-g310">▼</span>
+        </div>
+        <div id="g310" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3101')"><span class="tc-id">TC-3.10.1</span><span class="tc-name">Stage Edit (No Auto-Send)</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3101">▼</span></div><div id="tc3101" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded. Configuration section visible with writable fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click edit on a writable field</td><td class="expected-cell">Input appears</td></tr><tr><td>2</td><td>Enter a new value and click "Stage" (orange button)</td><td class="expected-cell">Field row shows dirty state (orange highlight)</td></tr><tr><td>3</td><td>Verify pending value shown</td><td class="expected-cell">"Pending: [new value]" + "was: [original value]" text visible</td></tr><tr><td>4</td><td>Verify no SET sent to server</td><td class="expected-cell">No feedback toast, no traffic event</td></tr><tr><td>5</td><td>Verify dirty count badge on bulk bar</td><td class="expected-cell">Count increments (e.g., "2 changes")</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3102')"><span class="tc-id">TC-3.10.2</span><span class="tc-name">Revert Single Field</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3102">▼</span></div><div id="tc3102" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">At least one field staged (dirty).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click "Revert" button on a dirty field</td><td class="expected-cell">Field returns to original value, dirty indicator removed</td></tr><tr><td>2</td><td>Verify dirty count decreases</td><td class="expected-cell">Bulk bar count updates</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3103')"><span class="tc-id">TC-3.7.3</span><span class="tc-name">Revert All</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3103">▼</span></div><div id="tc3103" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Multiple fields staged.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click "Revert All" in bulk action bar</td><td class="expected-cell">All dirty indicators cleared</td></tr><tr><td>2</td><td>Verify dirty count = 0</td><td class="expected-cell">Bulk bar hidden</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.11 Bulk SET -->
+      <div id="tc-311">
+        <div class="group-header" onclick="toggleGroup('g311')">
+          <span class="group-header-icon">📦</span>
+          <span class="group-header-title">3.11 — Bulk SET Operations</span>
+          <span class="group-header-count">5 cases</span>
+          <span class="group-toggle" id="arrow-g311">▼</span>
+        </div>
+        <div id="g311" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3111')"><span class="tc-id">TC-3.8.1</span><span class="tc-name">Send All Staged Changes (SNMP)</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc3111">▼</span></div><div id="tc3111" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Multiple SNMP fields staged (dirty).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Stage 3+ writable SNMP fields with new values</td><td class="expected-cell">Dirty count = 3+</td></tr><tr><td>2</td><td>Click "Send All" in bulk action bar</td><td class="expected-cell">Feedback toast: "pending" for bulk(N)</td></tr><tr><td>3</td><td>Wait for completion</td><td class="expected-cell">Feedback: "N/N succeeded" (success) or "X/N succeeded" (partial)</td></tr><tr><td>4</td><td>Verify all fields updated in panel</td><td class="expected-cell"><code>currentValue</code> reflects new values for successful items</td></tr><tr><td>5</td><td>Verify on hardware</td><td class="expected-cell">All values changed</td></tr><tr><td>6</td><td>Verify dirty map cleared</td><td class="expected-cell">No more dirty indicators</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3114')"><span class="tc-id">TC-3.8.4</span><span class="tc-name">Bulk SET via CSV Import</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3114">▼</span></div><div id="tc3114" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Bulk SET component visible. SNMP device loaded.</div></div></div><div class="steps-label">Prepare CSV</div><pre><code># OID,Value,Type
+1.3.6.1.2.1.1.4.0,admin@test.com,OctetString
+1.3.6.1.2.1.1.6.0,Lab Room 5,OctetString</code></pre><div class="steps-label" style="margin-top:0.75rem">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click file upload in Bulk SET component</td><td class="expected-cell">File picker opens</td></tr><tr><td>2</td><td>Select CSV file</td><td class="expected-cell">Preview table shows parsed items (2 rows)</td></tr><tr><td>3</td><td>Verify parsed OIDs, values, types</td><td class="expected-cell">Match CSV content; comments/headers skipped</td></tr><tr><td>4</td><td>Click "Send"</td><td class="expected-cell">Progress bar advances. Feedback toast: pending → result</td></tr><tr><td>5</td><td>Verify results table</td><td class="expected-cell">Per-OID success/failure status</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3115')"><span class="tc-id">TC-3.8.5</span><span class="tc-name">Bulk SET via JSON Import</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3115">▼</span></div><div id="tc3115" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Bulk SET component visible.</div></div></div><div class="steps-label">Prepare JSON</div><pre><code>[
+  { "oid": "1.3.6.1.2.1.1.4.0", "value": "admin@test.com", "valueType": "OctetString" },
+  { "oid": "1.3.6.1.2.1.1.6.0", "value": "Lab Room 5",    "valueType": "OctetString" }
+]</code></pre><div class="steps-label" style="margin-top:0.75rem">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Upload JSON file</td><td class="expected-cell">Preview table shows 2 items</td></tr><tr><td>2</td><td>Click "Send"</td><td class="expected-cell">Bulk SET executed</td></tr><tr><td>3</td><td>Verify results</td><td class="expected-cell">Per-OID success/failure</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.12 SNMP Protocol -->
+      <div id="tc-312">
+        <div class="group-header" onclick="toggleGroup('g312')">
+          <span class="group-header-icon">🌐</span>
+          <span class="group-header-title">3.12 — SNMP Protocol Support</span>
+          <span class="group-header-count">4 cases</span>
+          <span class="group-toggle" id="arrow-g312">▼</span>
+        </div>
+        <div id="g312" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3121')"><span class="tc-id">TC-3.9.1</span><span class="tc-name">SNMPv2c GET/SET/WALK</span><span class="priority-badge priority-critical">Critical</span><span class="tc-toggle" id="arr-tc3121">▼</span></div><div id="tc3121" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device configured with SNMPv2c (community string).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Load device schema</td><td class="expected-cell">Schema loaded via WALK from hardware</td></tr><tr><td>2</td><td>Verify live values (GET)</td><td class="expected-cell">All scalar/table values populated</td></tr><tr><td>3</td><td>SET a writable field</td><td class="expected-cell">Value changed on device</td></tr><tr><td>4</td><td>Periodic WALK updates panel</td><td class="expected-cell">Values refresh every cycle</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3122')"><span class="tc-id">TC-3.9.2</span><span class="tc-name">SNMPv3 Authentication &amp; Privacy</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3122">▼</span></div><div id="tc3122" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device configured with SNMPv3 credentials (auth: MD5 or SHA, priv: DES or AES).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Load device schema</td><td class="expected-cell">V3 discovery + auth/priv negotiation succeeds</td></tr><tr><td>2</td><td>Verify live values</td><td class="expected-cell">Encrypted SNMP communication works</td></tr><tr><td>3</td><td>SET a writable field</td><td class="expected-cell">V3 SET succeeds</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3123')"><span class="tc-id">TC-3.9.3</span><span class="tc-name">WALK Skip-on-Timeout</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3123">▼</span></div><div id="tc3123" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMP device with OID subtrees that may timeout (e.g., large MIBs).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Start a full WALK on device</td><td class="expected-cell">Walk begins at 1.3.6.1</td></tr><tr><td>2</td><td>If a subtree times out</td><td class="expected-cell">Log: <code>Timeout at [OID], skipping to [nextOid]</code></td></tr><tr><td>3</td><td>Walk continues to next branch</td><td class="expected-cell"><code>SkipToNextBranch</code> computes next sibling OID</td></tr><tr><td>4</td><td>Walk completes</td><td class="expected-cell">All reachable OIDs recorded, unresponsive branches skipped</td></tr><tr><td>5</td><td>Verify max consecutive skips (10)</td><td class="expected-cell">After 10 consecutive skips, walk ends gracefully</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3124')"><span class="tc-id">TC-3.9.4</span><span class="tc-name">Simulator Routing</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3124">▼</span></div><div id="tc3124" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">A simulator is running for the selected device.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Verify device card shows "Simulating"</td><td class="expected-cell">Simulator endpoint registered</td></tr><tr><td>2</td><td>Perform GET on device</td><td class="expected-cell">Request routed to simulator (localhost:simPort)</td></tr><tr><td>3</td><td>Perform SET on device</td><td class="expected-cell">SET routed to simulator</td></tr><tr><td>4</td><td>Stop simulator</td><td class="expected-cell">Requests route back to real hardware</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.13 Automation -->
+      <div id="tc-313">
+        <div class="group-header" onclick="toggleGroup('g313')">
+          <span class="group-header-icon">🤖</span>
+          <span class="group-header-title">3.13 — Name-Based Watches &amp; Automation</span>
+          <span class="group-header-count">3 cases</span>
+          <span class="group-toggle" id="arrow-g313">▼</span>
+        </div>
+        <div id="g313" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3131')"><span class="tc-id">TC-3.10.1</span><span class="tc-name">WatchByName Callback</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3131">▼</span></div><div id="tc3131" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded. Watch registered for a field name (e.g., "temperature").</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Register watch: <code>panelService.watchByName('temperature', callback)</code></td><td class="expected-cell">Watch registered (case-insensitive)</td></tr><tr><td>2</td><td>Change the "temperature" field value (via SET or periodic walk)</td><td class="expected-cell">Callback fires with OidChangedEvent</td></tr><tr><td>3</td><td>Verify event contains: newValue, previousValue, fieldName</td><td class="expected-cell">All values correct</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3132')"><span class="tc-id">TC-3.10.2</span><span class="tc-name">Cross-Protocol Automation (SNMP → IDD)</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3132">▼</span></div><div id="tc3132" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with SNMP "temperature" field and IDD "alarm-indicator" field.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Register automation: if temperature &gt; 80°C, SET alarm-indicator = "ON"</td><td class="expected-cell">Watch callback registered</td></tr><tr><td>2</td><td>Set temperature to 85 on hardware</td><td class="expected-cell">Periodic walk detects change</td></tr><tr><td>3</td><td>Verify alarm-indicator SET triggered</td><td class="expected-cell"><code>SendIddSet</code> called with "alarm-indicator", "ON"</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3133')"><span class="tc-id">TC-3.10.3</span><span class="tc-name">Unsubscribe Watch</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3133">▼</span></div><div id="tc3133" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Watch registered.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Call unsubscribe function returned by <code>watchByName</code></td><td class="expected-cell">Watch removed</td></tr><tr><td>2</td><td>Change the watched field</td><td class="expected-cell">Callback does NOT fire</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.14 UI -->
+      <div id="tc-314">
+        <div class="group-header" onclick="toggleGroup('g314')">
+          <span class="group-header-icon">🖱</span>
+          <span class="group-header-title">3.14 — UI Interaction &amp; Layout</span>
+          <span class="group-header-count">4 cases</span>
+          <span class="group-toggle" id="arrow-g314">▼</span>
+        </div>
+        <div id="g314" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3141')"><span class="tc-id">TC-3.11.1</span><span class="tc-name">Module Tab Navigation</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3141">▼</span></div><div id="tc3141" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with multiple modules.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click a module tab</td><td class="expected-cell">Panel scrolls to that module section</td></tr><tr><td>2</td><td>Verify all tabs correspond to loaded modules</td><td class="expected-cell">Tab names match MIB module names</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3142')"><span class="tc-id">TC-3.11.2</span><span class="tc-name">Section Collapse/Expand</span><span class="priority-badge priority-low">Low</span><span class="tc-toggle" id="arr-tc3142">▼</span></div><div id="tc3142" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Module section with Monitoring + Configuration sub-sections.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click section header to collapse</td><td class="expected-cell">Section content hidden, count badge visible</td></tr><tr><td>2</td><td>Click again to expand</td><td class="expected-cell">Content restored</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3143')"><span class="tc-id">TC-3.11.3</span><span class="tc-name">Health Summary</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3143">▼</span></div><div id="tc3143" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with enum/status fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Observe health summary</td><td class="expected-cell">Shows counts: OK, Warning, Alarm, Info</td></tr><tr><td>2</td><td>Change a status field to alarm state</td><td class="expected-cell">Alarm count increments</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3144')"><span class="tc-id">TC-3.11.4</span><span class="tc-name">Device Switch</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3144">▼</span></div><div id="tc3144" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Two or more devices configured.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Load Device A</td><td class="expected-cell">Schema A displayed</td></tr><tr><td>2</td><td>Click Device B card</td><td class="expected-cell">Loading spinner → Schema B displayed</td></tr><tr><td>3</td><td>Verify Device A fields no longer shown</td><td class="expected-cell">Full panel reset to Device B</td></tr><tr><td>4</td><td>Switch back to Device A</td><td class="expected-cell">Schema loads from cache (fast)</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.15 Error Handling -->
+      <div id="tc-315">
+        <div class="group-header" onclick="toggleGroup('g315')">
+          <span class="group-header-icon">⚠️</span>
+          <span class="group-header-title">3.15 — Error Handling &amp; Edge Cases</span>
+          <span class="group-header-count">4 cases</span>
+          <span class="group-toggle" id="arrow-g315">▼</span>
+        </div>
+        <div id="g315" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3151')"><span class="tc-id">TC-3.12.1</span><span class="tc-name">Device Unreachable</span><span class="priority-badge priority-high">High</span><span class="tc-toggle" id="arr-tc3151">▼</span></div><div id="tc3151" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device configured but physically unreachable (powered off or disconnected).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Load device schema</td><td class="expected-cell">Schema may load from cache/MIB, but values will be empty or stale</td></tr><tr><td>2</td><td>Attempt SET</td><td class="expected-cell">Feedback: "error" — timeout or connection refused</td></tr><tr><td>3</td><td>Periodic walk logs timeouts</td><td class="expected-cell">Walk handles timeouts via SkipToNextBranch, eventually ends</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3152')"><span class="tc-id">TC-3.12.2</span><span class="tc-name">Invalid MIB Files</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3152">▼</span></div><div id="tc3152" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device with corrupted or missing MIB files.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Load device</td><td class="expected-cell">Error logged in console/debug output</td></tr><tr><td>2</td><td>Verify no crash</td><td class="expected-cell">Application remains stable</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3153')"><span class="tc-id">TC-3.12.3</span><span class="tc-name">Concurrent Bulk SET</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3153">▼</span></div><div id="tc3153" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Device loaded with many writable fields.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Stage many fields (10+) and click Send All</td><td class="expected-cell">All items sent in single bulk call</td></tr><tr><td>2</td><td>Simultaneously trigger a periodic walk</td><td class="expected-cell">Both operations complete without conflict</td></tr><tr><td>3</td><td>Verify final field values are consistent</td><td class="expected-cell">Last write wins; values reflect either SET or walk result</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3154')"><span class="tc-id">TC-3.12.4</span><span class="tc-name">Send All with Zero Dirty Fields</span><span class="priority-badge priority-low">Low</span><span class="tc-toggle" id="arr-tc3154">▼</span></div><div id="tc3154" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">No fields staged.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Verify "Send All" button not visible / disabled</td><td class="expected-cell">Bulk bar hidden when dirtyCount = 0</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.16 Enum/Toggle -->
+      <div id="tc-316">
+        <div class="group-header" onclick="toggleGroup('g316')">
+          <span class="group-header-icon">🔘</span>
+          <span class="group-header-title">3.16 — Enum &amp; Toggle Fields</span>
+          <span class="group-header-count">2 cases</span>
+          <span class="group-toggle" id="arrow-g316">▼</span>
+        </div>
+        <div id="g316" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3161')"><span class="tc-id">TC-3.13.1</span><span class="tc-name">Enum Field Edit</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3161">▼</span></div><div id="tc3161" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Writable enum field visible (e.g., admin status with up(1)/down(2)).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click edit on enum field</td><td class="expected-cell">Dropdown with enum options appears</td></tr><tr><td>2</td><td>Select a different option</td><td class="expected-cell">Value staged/sent correctly (numeric value, not label)</td></tr><tr><td>3</td><td>Verify display shows label</td><td class="expected-cell">e.g., "up" not "1"</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3162')"><span class="tc-id">TC-3.13.2</span><span class="tc-name">Toggle Field</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3162">▼</span></div><div id="tc3162" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Toggle field visible (boolean/binary).</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Click toggle ON button</td><td class="expected-cell">SET sent with "1" (or appropriate value)</td></tr><tr><td>2</td><td>Click toggle OFF button</td><td class="expected-cell">SET sent with "0"</td></tr><tr><td>3</td><td>Verify visual state matches</td><td class="expected-cell">Toggle reflects current value</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.17 OID Watch -->
+      <div id="tc-317">
+        <div class="group-header" onclick="toggleGroup('g317')">
+          <span class="group-header-icon">👁</span>
+          <span class="group-header-title">3.17 — OID Watch Service (Server-Side)</span>
+          <span class="group-header-count">2 cases</span>
+          <span class="group-toggle" id="arrow-g317">▼</span>
+        </div>
+        <div id="g317" class="collapsible-content">
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3171')"><span class="tc-id">TC-3.14.1</span><span class="tc-name">Exact OID Watch</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3171">▼</span></div><div id="tc3171" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">OidWatchService initialized with schema.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Register watch for specific OID</td><td class="expected-cell">Watch registered in server-side service</td></tr><tr><td>2</td><td>Trigger OID change (via walk or SET)</td><td class="expected-cell">Callback fires with (oid, newValue, previousValue)</td></tr></tbody></table></div></div></div>
+          <div class="tc-card"><div class="tc-header" onclick="toggleTC('tc3172')"><span class="tc-id">TC-3.14.2</span><span class="tc-name">Name-to-OID Resolution</span><span class="priority-badge priority-normal">Normal</span><span class="tc-toggle" id="arr-tc3172">▼</span></div><div id="tc3172" class="tc-body"><div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Schema loaded, name map built.</div></div></div><div class="steps-label">Steps</div><div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody><tr><td>1</td><td>Call <code>ResolveNameToOid("sysName")</code></td><td class="expected-cell">Returns correct OID (e.g., <code>1.3.6.1.2.1.1.5</code>)</td></tr><tr><td>2</td><td>Call <code>ResolveOidToName("1.3.6.1.2.1.1.5")</code></td><td class="expected-cell">Returns "sysName"</td></tr><tr><td>3</td><td>Verify case-insensitive</td><td class="expected-cell"><code>ResolveNameToOid("SYSNAME")</code> returns same result</td></tr></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3.18 System Architecture Page -->
+      <div id="tc-318">
+        <div class="group-header" onclick="toggleGroup('g318')">
+          <span class="group-header-icon">🗺</span>
+          <span class="group-header-title">3.18 — System Architecture Page</span>
+          <span class="group-header-count">5 cases</span>
+          <span class="group-toggle" id="arrow-g318">▼</span>
+        </div>
+        <div id="g318" class="collapsible-content">
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3181')">
+              <span class="tc-id">TC-3.18.1</span>
+              <span class="tc-name">Architecture Page — Hardware Units Render</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc3181">▼</span>
+            </div>
+            <div id="tc3181" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">NMS running. NMSClient loaded. At least one device connected or simulated.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Navigate to the System Architecture page</td><td class="expected-cell">Page displays graphical layout of all hardware units: BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, GST×9</td></tr>
+                <tr><td>2</td><td>Verify all hardware icons/blocks are present</td><td class="expected-cell">Each unit rendered with its label — 9 GST nodes individually identified</td></tr>
+                <tr><td>3</td><td>Verify connection lines between units are displayed</td><td class="expected-cell">Lines/arrows connecting dependent hardware are visible</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3182')">
+              <span class="tc-id">TC-3.18.2</span>
+              <span class="tc-name">Hardware Color Reflects Device Status</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc3182">▼</span>
+            </div>
+            <div id="tc3182" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Architecture page open. Devices have varying status (OK, Warn, Alarm, Offline).</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe a device with OK status</td><td class="expected-cell">Hardware block shown in <strong style="color:var(--green)">green</strong></td></tr>
+                <tr><td>2</td><td>Observe a device with Warning status</td><td class="expected-cell">Hardware block shown in <strong style="color:var(--orange)">amber/orange</strong></td></tr>
+                <tr><td>3</td><td>Observe a device with Alarm/Error status</td><td class="expected-cell">Hardware block shown in <strong style="color:var(--red)">red</strong></td></tr>
+                <tr><td>4</td><td>Observe a device that is disconnected / offline</td><td class="expected-cell">Hardware block shown in <strong style="color:var(--text-muted)">gray</strong></td></tr>
+                <tr><td>5</td><td>Change device status via SET or WALK update</td><td class="expected-cell">Color updates dynamically on next walk cycle — no page refresh required</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3183')">
+              <span class="tc-id">TC-3.18.3</span>
+              <span class="tc-name">Connection Line State Between Hardware</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc3183">▼</span>
+            </div>
+            <div id="tc3183" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Architecture page open. Hardware connections defined.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe connection line between two active devices</td><td class="expected-cell">Line shown in <strong style="color:var(--green)">green</strong> (connection OK)</td></tr>
+                <tr><td>2</td><td>Observe connection line when one endpoint device is in alarm</td><td class="expected-cell">Line shown in <strong style="color:var(--red)">red</strong> or dashed — degraded connection</td></tr>
+                <tr><td>3</td><td>Observe connection line when one endpoint is offline/disconnected</td><td class="expected-cell">Line shown in <strong style="color:var(--text-muted)">gray</strong> — connection inactive</td></tr>
+                <tr><td>4</td><td>Restore device connectivity</td><td class="expected-cell">Line returns to green on next status update</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3184')">
+              <span class="tc-id">TC-3.18.4</span>
+              <span class="tc-name">Architecture Page — Simulation Mode (SNMPSim)</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc3184">▼</span>
+            </div>
+            <div id="tc3184" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMPSim running for at least one hardware unit. Simulation mode optional/enabled.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Enable SNMPSim for BUC, PIRANHA, or any GST unit</td><td class="expected-cell">Simulated device card shows "Simulating" badge</td></tr>
+                <tr><td>2</td><td>View Architecture page with simulated device</td><td class="expected-cell">Hardware block displays simulated status color — page behaves identically to live device</td></tr>
+                <tr><td>3</td><td>Change simulated OID value via simulator</td><td class="expected-cell">Color/state updates on architecture page within one walk cycle</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3185')">
+              <span class="tc-id">TC-3.18.5</span>
+              <span class="tc-name">Hardware Block Click — Navigate to Device Panel</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc3185">▼</span>
+            </div>
+            <div id="tc3185" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">Architecture page open. Devices loaded.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Click on a hardware block (e.g., BUC)</td><td class="expected-cell">Navigates to or opens the MIB/IDD panel for that device</td></tr>
+                <tr><td>2</td><td>Verify device context is correct</td><td class="expected-cell">Panel shows fields for the clicked hardware unit</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+        </div><!-- /g318 -->
+      </div>
+
+      <!-- 3.19 System Tree -->
+      <div id="tc-319">
+        <div class="group-header" onclick="toggleGroup('g319')">
+          <span class="group-header-icon">🌲</span>
+          <span class="group-header-title">3.19 — System Tree (Hardware &amp; MCC/GCC Interface)</span>
+          <span class="group-header-count">5 cases</span>
+          <span class="group-toggle" id="arrow-g319">▼</span>
+        </div>
+        <div id="g319" class="collapsible-content">
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3191')">
+              <span class="tc-id">TC-3.19.1</span>
+              <span class="tc-name">System Tree — Full Hardware Hierarchy Rendered</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc3191">▼</span>
+            </div>
+            <div id="tc3191" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">NMS running. All hardware profiles configured (BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, GST×9).</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Navigate to the System Tree view</td><td class="expected-cell">Hierarchical tree displayed with all hardware nodes: BUC, PIRANHA, SPLITTER, COMBINER, ACU, OSA, all 9 GST units</td></tr>
+                <tr><td>2</td><td>Verify MCC / GCC interface nodes present</td><td class="expected-cell">MCC and GCC appear as nodes in the tree (top-level or interface level)</td></tr>
+                <tr><td>3</td><td>Expand all tree nodes</td><td class="expected-cell">All sub-nodes visible with correct parent-child relationships</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3192')">
+              <span class="tc-id">TC-3.19.2</span>
+              <span class="tc-name">Tree Node Status — Connect / Disconnect / Fail / OK</span>
+              <span class="priority-badge priority-critical">Critical</span>
+              <span class="tc-toggle" id="arr-tc3192">▼</span>
+            </div>
+            <div id="tc3192" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">System Tree open. Devices with varying connection/status states.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe a connected, healthy device node</td><td class="expected-cell">Node shows <strong style="color:var(--green)">OK</strong> indicator (green icon/badge)</td></tr>
+                <tr><td>2</td><td>Observe a node for a disconnected device</td><td class="expected-cell">Node shows <strong style="color:var(--text-muted)">DISCONNECT</strong> indicator (gray icon)</td></tr>
+                <tr><td>3</td><td>Observe a node for a device in fault/alarm state</td><td class="expected-cell">Node shows <strong style="color:var(--red)">FAIL</strong> indicator (red icon)</td></tr>
+                <tr><td>4</td><td>Reconnect a previously disconnected device</td><td class="expected-cell">Node updates to CONNECT / OK state automatically</td></tr>
+                <tr><td>5</td><td>Verify MCC / GCC interface nodes show their own state</td><td class="expected-cell">MCC/GCC nodes reflect CONNECT / DISCONNECT / FAIL / OK independently</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3193')">
+              <span class="tc-id">TC-3.19.3</span>
+              <span class="tc-name">Tree Node Live Update (No User Interaction)</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc3193">▼</span>
+            </div>
+            <div id="tc3193" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">System Tree open. Periodic walk / SignalR updates running.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Observe tree for 30+ seconds without interaction</td><td class="expected-cell">Node statuses update automatically with each walk cycle</td></tr>
+                <tr><td>2</td><td>Physically disconnect a hardware DUT</td><td class="expected-cell">Corresponding tree node transitions to DISCONNECT within one cycle</td></tr>
+                <tr><td>3</td><td>Reconnect the hardware DUT</td><td class="expected-cell">Node returns to CONNECT / OK state automatically</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3194')">
+              <span class="tc-id">TC-3.19.4</span>
+              <span class="tc-name">Tree Node Click — Navigate to Device Panel</span>
+              <span class="priority-badge priority-normal">Normal</span>
+              <span class="tc-toggle" id="arr-tc3194">▼</span>
+            </div>
+            <div id="tc3194" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">System Tree open with hardware nodes.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Click on a hardware node (e.g., GST-3)</td><td class="expected-cell">Navigates to or selects the MIB/IDD panel for that device</td></tr>
+                <tr><td>2</td><td>Click on MCC or GCC interface node</td><td class="expected-cell">Opens MCC/GCC-specific interface or detail panel</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+          <div class="tc-card" >
+            <div class="tc-header" onclick="toggleTC('tc3195')">
+              <span class="tc-id">TC-3.19.5</span>
+              <span class="tc-name">Tree — Simulation Mode (SNMPSim)</span>
+              <span class="priority-badge priority-high">High</span>
+              <span class="tc-toggle" id="arr-tc3195">▼</span>
+            </div>
+            <div id="tc3195" class="tc-body">
+              <div class="tc-meta-row"><div class="tc-meta-item"><div class="tc-meta-label">Precondition</div><div class="tc-meta-val">SNMPSim enabled for one or more hardware units.</div></div></div>
+              <div class="steps-label">Steps</div>
+              <div class="table-wrap"><table class="steps-table"><thead><tr><th>#</th><th>Action</th><th>Expected Result</th></tr></thead><tbody>
+                <tr><td>1</td><td>Enable SNMPSim for PIRANHA or any GST unit</td><td class="expected-cell">Tree node shows simulated status as if device is live</td></tr>
+                <tr><td>2</td><td>Modify simulated OID to trigger FAIL state</td><td class="expected-cell">Tree node updates to FAIL indicator within one walk cycle</td></tr>
+                <tr><td>3</td><td>Disable simulation</td><td class="expected-cell">Node falls back to DISCONNECT (no live device present)</td></tr>
+              </tbody></table></div>
+            </div>
+          </div>
+
+        </div><!-- /g319 -->
+      </div>
+
+    </div><!-- /section 3 -->
+
+    <!-- SECTION 4 - MATRIX -->
+    <div class="doc-section" id="sec-matrix">
+      <div class="section-header">
+        <span class="section-number">§4</span>
+        <span class="section-title">Test Summary Matrix</span>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-block">
+          <div class="stat-number" style="color:var(--text)">52</div>
+          <div class="stat-label">Total Cases</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number" style="color:var(--critical)">11</div>
+          <div class="stat-label">Critical</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number" style="color:var(--high)">22</div>
+          <div class="stat-label">High</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number" style="color:var(--normal)">16</div>
+          <div class="stat-label">Normal</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number" style="color:var(--low)">3</div>
+          <div class="stat-label">Low</div>
+        </div>
+      </div>
+
+      <div class="matrix-grid">
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.1.1</span><span class="matrix-name">Initial Connection</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-connectivity">Connectivity</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.1.2</span><span class="matrix-name">Reconnection After Restart</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-connectivity">Connectivity</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.1.3</span><span class="matrix-name">Explicit Disconnect</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-connectivity">Connectivity</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.2.1</span><span class="matrix-name">Load Device List</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-schema">Schema</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.2.2</span><span class="matrix-name">Load SNMP Device Schema</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-schema">Schema</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.2.3</span><span class="matrix-name">Load IDD Device Schema</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-schema">Schema</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.2.4</span><span class="matrix-name">Schema Caching</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-schema">Schema</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.2.5</span><span class="matrix-name">Load Schema from Pre-Built JSON</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-schema">Schema</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.3.1</span><span class="matrix-name">Periodic WALK Updates</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-monitoring">Monitoring</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.3.2</span><span class="matrix-name">Traffic Event Display</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-monitoring">Monitoring</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.3.3</span><span class="matrix-name">OID Change Detection</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-monitoring">Monitoring</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.3.4</span><span class="matrix-name">Selective Subtree WALK</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-monitoring">Monitoring</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.4.1</span><span class="matrix-name">Device Identity Header</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-display">Display</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.4.2</span><span class="matrix-name">Status Fields Color Coding</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-display">Display</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.4.3</span><span class="matrix-name">Counter &amp; Gauge Display</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-display">Display</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.4.4</span><span class="matrix-name">Table Display</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-display">Display</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.5.1</span><span class="matrix-name">SET Writable Scalar (Immediate)</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-snmp">SNMP SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.5.2</span><span class="matrix-name">SET with Invalid Value</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-snmp">SNMP SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.5.3</span><span class="matrix-name">SET When Disconnected</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-snmp">SNMP SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.6.1</span><span class="matrix-name">IDD Field SET</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-idd">IDD SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.6.2</span><span class="matrix-name">IDD vs SNMP Routing</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-idd">IDD SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.7.1</span><span class="matrix-name">Stage Edit (No Auto-Send)</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-dirty">Dirty Track</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.7.2</span><span class="matrix-name">Revert Single Field</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-dirty">Dirty Track</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.7.3</span><span class="matrix-name">Revert All</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-dirty">Dirty Track</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.8.1</span><span class="matrix-name">Send All Staged (SNMP)</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-bulk">Bulk SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.8.2</span><span class="matrix-name">Send All Staged (IDD)</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-bulk">Bulk SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.8.3</span><span class="matrix-name">Send All Mixed (SNMP + IDD)</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-bulk">Bulk SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.8.4</span><span class="matrix-name">Bulk SET via CSV Import</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-bulk">Bulk SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.8.5</span><span class="matrix-name">Bulk SET via JSON Import</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-bulk">Bulk SET</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.9.1</span><span class="matrix-name">SNMPv2c GET/SET/WALK</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill type-protocol">Protocol</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.9.2</span><span class="matrix-name">SNMPv3 Auth &amp; Privacy</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-protocol">Protocol</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.9.3</span><span class="matrix-name">WALK Skip-on-Timeout</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-protocol">Protocol</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.9.4</span><span class="matrix-name">Simulator Routing</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-protocol">Protocol</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.10.1</span><span class="matrix-name">WatchByName Callback</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-automation">Automation</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.10.2</span><span class="matrix-name">Cross-Protocol Automation</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-automation">Automation</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.10.3</span><span class="matrix-name">Unsubscribe Watch</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-automation">Automation</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.11.1</span><span class="matrix-name">Module Tab Navigation</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-ui">UI</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.11.2</span><span class="matrix-name">Section Collapse/Expand</span><span class="priority-badge priority-low" style="margin-left:4px;font-size:9px">Low</span><span class="type-pill type-ui">UI</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.11.3</span><span class="matrix-name">Health Summary</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-ui">UI</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.11.4</span><span class="matrix-name">Device Switch</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-ui">UI</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.12.1</span><span class="matrix-name">Device Unreachable</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill type-error">Error</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.12.2</span><span class="matrix-name">Invalid MIB Files</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-error">Error</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.12.3</span><span class="matrix-name">Concurrent Bulk SET</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-error">Error</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.12.4</span><span class="matrix-name">Send All with Zero Dirty</span><span class="priority-badge priority-low" style="margin-left:4px;font-size:9px">Low</span><span class="type-pill type-error">Error</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.13.1</span><span class="matrix-name">Enum Field Edit</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-field">Field Types</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.13.2</span><span class="matrix-name">Toggle Field</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-field">Field Types</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.14.1</span><span class="matrix-name">Exact OID Watch</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-oid">OID Watch</span></div>
+        <div class="matrix-row"><span class="matrix-tc-id">TC-3.14.2</span><span class="matrix-name">Name-to-OID Resolution</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill type-oid">OID Watch</span></div>
+        <!-- 3.18 Architecture -->
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.18.1</span><span class="matrix-name">Architecture Page — HW Units Render</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill" >Arch</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.18.2</span><span class="matrix-name">Hardware Color Reflects Status</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill" >Arch</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.18.3</span><span class="matrix-name">Connection Line State Between HW</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill" >Arch</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.18.4</span><span class="matrix-name">Architecture Page — Simulation Mode</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill" >Arch</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.18.5</span><span class="matrix-name">HW Block Click — Navigate to Panel</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill" >Arch</span></div>
+        <!-- 3.19 System Tree -->
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.19.1</span><span class="matrix-name">System Tree — Full HW Hierarchy</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill" >Tree</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.19.2</span><span class="matrix-name">Node Status: Connect/Disconnect/Fail/OK</span><span class="priority-badge priority-critical" style="margin-left:4px;font-size:9px">Critical</span><span class="type-pill" >Tree</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.19.3</span><span class="matrix-name">Tree Node Live Update</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill" >Tree</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.19.4</span><span class="matrix-name">Tree Node Click — Navigate to Panel</span><span class="priority-badge priority-normal" style="margin-left:4px;font-size:9px">Normal</span><span class="type-pill" >Tree</span></div>
+        <div class="matrix-row" ><span class="matrix-tc-id" >TC-3.19.5</span><span class="matrix-name">Tree — Simulation Mode (SNMPSim)</span><span class="priority-badge priority-high" style="margin-left:4px;font-size:9px">High</span><span class="type-pill" >Tree</span></div>
+      </div>
+    </div>
+
+    <!-- SECTION 5 - CRITERIA -->
+    <div class="doc-section" id="sec-criteria">
+      <div class="section-header">
+        <span class="section-number">§5</span>
+        <span class="section-title">Pass/Fail Criteria</span>
+      </div>
+      <div class="criteria-grid">
+        <div class="criteria-card pass">
+          <div class="criteria-verdict">✓ Pass</div>
+          <div class="criteria-text">All Critical and High priority tests pass. No more than 2 Normal tests may fail with documented justification.</div>
+        </div>
+        <div class="criteria-card conditional">
+          <div class="criteria-verdict">◑ Conditional Pass</div>
+          <div class="criteria-text">All Critical tests pass. Up to 3 High tests may fail with documented workarounds.</div>
+        </div>
+        <div class="criteria-card fail">
+          <div class="criteria-verdict">✗ Fail</div>
+          <div class="criteria-text">Any Critical test fails, or more than 3 High tests fail.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 6 - LOG -->
+    <div class="doc-section" id="sec-log">
+      <div class="section-header">
+        <span class="section-number">§6</span>
+        <span class="section-title">Test Execution Log</span>
+      </div>
+      <div class="table-wrap">
+        <table class="log-table">
+          <thead><tr><th>Test ID</th><th>Date</th><th>Tester</th><th>Result</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="log-placeholder">—</td><td class="log-placeholder">—</td><td class="log-placeholder">—</td><td class="log-placeholder">—</td><td class="log-placeholder">Awaiting execution</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <div class="doc-footer">
+    <span>STP-GHP-001 · v1.1 · 2026-03-18</span>
+    <span>NMS — Generic Hardware &amp; IDD Panel</span>
+    <span>End of Document</span>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  function toggleGroup(id) {
+    const el = document.getElementById(id);
+    const arrow = document.getElementById('arrow-' + id);
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      arrow.textContent = '▼';
+    } else {
+      el.style.display = 'none';
+      arrow.textContent = '▶';
+    }
+  }
+
+  function toggleTC(id) {
+    const el = document.getElementById(id);
+    const arrow = document.getElementById('arr-' + id);
+    if (el.style.display === 'none' || el.style.display === '') {
+      el.style.display = 'block';
+      if (arrow) arrow.textContent = '▲';
+    } else {
+      el.style.display = 'none';
+      if (arrow) arrow.textContent = '▼';
+    }
+  }
+
+  // Collapse all TC bodies initially (keep groups open)
+  document.querySelectorAll('.tc-body').forEach(el => {
+    el.style.display = 'none';
+  });
+
+  // Sidebar highlight on scroll
+  const sections = document.querySelectorAll('[id^="tc-"], [id^="sec-"]');
+  const navItems = document.querySelectorAll('.nav-item');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    navItems.forEach(n => {
+      n.classList.remove('active');
+      if (n.getAttribute('href') === '#' + current) n.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
