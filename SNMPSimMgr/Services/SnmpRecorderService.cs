@@ -149,6 +149,7 @@ namespace SNMPSimMgr.Services
             var lastOid = rootOid;
             int count = 0;
             int consecutiveSkips = 0;
+            int sameOidCount = 0;
 
             try
             {
@@ -195,6 +196,27 @@ namespace SNMPSimMgr.Services
                         !vb.Oid.ToString().StartsWith(rootOid.ToString()))
                         break;
 
+                    // Detect stuck OID — device returns same OID repeatedly
+                    if (vb.Oid.ToString() == lastOid.ToString())
+                    {
+                        sameOidCount++;
+                        if (sameOidCount > 3)
+                        {
+                            Log($"  Stuck at OID {lastOid} ({sameOidCount} repeats), skipping branch");
+                            var nextOid = SkipToNextBranch(lastOid, rootOid);
+                            if (nextOid == null || ++consecutiveSkips > MaxConsecutiveSkips)
+                            {
+                                Log($"  No more branches to skip to, ending walk");
+                                break;
+                            }
+                            lastOid = nextOid;
+                            sameOidCount = 0;
+                            continue;
+                        }
+                        continue;
+                    }
+                    sameOidCount = 0;
+
                     results.Add(VbToRecord(vb));
 
                     count++;
@@ -224,6 +246,7 @@ namespace SNMPSimMgr.Services
             var lastOid = rootOid;
             int count = 0;
             int consecutiveSkips = 0;
+            int sameOidCount = 0;
 
             try
             {
@@ -268,6 +291,27 @@ namespace SNMPSimMgr.Services
                         vb.Value.Type == SnmpConstants.SMI_ENDOFMIBVIEW ||
                         !vb.Oid.ToString().StartsWith(rootOid.ToString()))
                         break;
+
+                    // Detect stuck OID — device returns same OID repeatedly
+                    if (vb.Oid.ToString() == lastOid.ToString())
+                    {
+                        sameOidCount++;
+                        if (sameOidCount > 3)
+                        {
+                            Log($"  Stuck at OID {lastOid} ({sameOidCount} repeats), skipping branch");
+                            var nextOid = SkipToNextBranch(lastOid, rootOid);
+                            if (nextOid == null || ++consecutiveSkips > MaxConsecutiveSkips)
+                            {
+                                Log($"  No more branches to skip to, ending walk");
+                                break;
+                            }
+                            lastOid = nextOid;
+                            sameOidCount = 0;
+                            continue;
+                        }
+                        continue;
+                    }
+                    sameOidCount = 0;
 
                     results.Add(VbToRecord(vb));
 

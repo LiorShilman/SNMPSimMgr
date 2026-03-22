@@ -135,15 +135,6 @@ namespace SNMPSimMgr.ViewModels
             }
 
             await SaveAsync();
-
-            // Force DataGrid refresh by replacing item in collection
-            var idx = Devices.IndexOf(SelectedDevice);
-            if (idx >= 0)
-            {
-                var device = SelectedDevice;
-                Devices[idx] = device;
-                SelectedDevice = device;
-            }
         }
 
         [RelayCommand]
