@@ -21,6 +21,12 @@ namespace SNMPSimMgr.Services
         private SortedDictionary<string, SnmpRecord> _mibData = new SortedDictionary<string, SnmpRecord>(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, string>  _dynamicValues = new ConcurrentDictionary<string, string>();
 
+        // V3 support
+        private SnmpV3Credentials _v3Credentials;
+        private OctetString _engineId;
+        private int _engineBoots = 1;
+        private int _engineTime = 0;
+
         public event Action<string> LogMessage;
         public event Action<string, string, string, string> RequestReceived; // op, oid, val, sourceIp
         public event Action<int, int> InjectionProgress; // currentFrame, totalFrames
@@ -40,11 +46,27 @@ namespace SNMPSimMgr.Services
             Log($"Loaded {_mibData.Count} OIDs for device '{deviceName}'.");
         }
 
-        public void Start(int port, string community = "public", string listenIp = "0.0.0.0")
+        public void Start(int port, string community = "public", string listenIp = "0.0.0.0",
+            SnmpV3Credentials v3Credentials = null)
         {
             if (IsRunning) return;
 
             Port = port;
+            _v3Credentials = v3Credentials;
+
+            // Generate a unique engine ID for V3
+            if (_v3Credentials != null)
+            {
+                var idBytes = new byte[12];
+                idBytes[0] = 0x80; // enterprise format
+                var rng = new Random();
+                rng.NextBytes(idBytes);
+                _engineId = new OctetString(idBytes);
+                _engineBoots = 1;
+                _engineTime = 0;
+                Log($"Simulator '{DeviceName}' V3 enabled (user: {_v3Credentials.Username})");
+            }
+
             var ip = IPAddress.Parse(listenIp);
             _cts = new CancellationTokenSource();
             _listener = new UdpClient(new IPEndPoint(ip, port));
@@ -116,6 +138,8 @@ namespace SNMPSimMgr.Services
 
                 if (ver == (int)SnmpVersion.Ver2)
                     HandleV2cRequest(data, remoteEp, expectedCommunity);
+                else if (ver == (int)SnmpVersion.Ver3 && _v3Credentials != null)
+                    HandleV3Request(data, remoteEp);
                 else
                     Log($"Unsupported SNMP version {ver} from {remoteEp}");
             }
@@ -164,6 +188,131 @@ namespace SNMPSimMgr.Services
             response.Pdu.Type = PduType.Response;
             var responseBytes = response.encode();
             _listener?.Send(responseBytes, responseBytes.Length, remoteEp);
+        }
+
+        private void HandleV3Request(byte[] data, IPEndPoint remoteEp)
+        {
+            // Decode as noAuthNoPriv first to read USM headers
+            var request = new SnmpV3Packet();
+            request.decode(data, data.Length);
+
+            var sourceIp = remoteEp.Address.ToString();
+
+            // Phase 1: Discovery — empty security name or no engine ID
+            if (request.USM.SecurityName.Length == 0 ||
+                request.USM.EngineId.Length == 0)
+            {
+                SendV3Discovery(request, remoteEp);
+                return;
+            }
+
+            // Verify username
+            if (request.USM.SecurityName.ToString() != _v3Credentials.Username)
+            {
+                Log($"V3 bad username '{request.USM.SecurityName}' from {remoteEp}");
+                return;
+            }
+
+            // Phase 2: Re-decode with auth/priv so the library verifies + decrypts
+            var authRequest = new SnmpV3Packet();
+            var authProto = _v3Credentials.AuthProtocol == Models.AuthProtocol.MD5
+                ? AuthenticationDigests.MD5 : AuthenticationDigests.SHA1;
+            var privProto = _v3Credentials.PrivProtocol == Models.PrivProtocol.DES
+                ? PrivacyProtocols.DES : PrivacyProtocols.AES128;
+
+            var userBytes = System.Text.Encoding.UTF8.GetBytes(_v3Credentials.Username);
+            var authPwdBytes = System.Text.Encoding.UTF8.GetBytes(_v3Credentials.AuthPassword);
+            var privPwdBytes = !string.IsNullOrEmpty(_v3Credentials.PrivPassword)
+                ? System.Text.Encoding.UTF8.GetBytes(_v3Credentials.PrivPassword) : null;
+
+            if (privPwdBytes != null)
+            {
+                authRequest.authPriv(userBytes, authPwdBytes, authProto, privPwdBytes, privProto);
+            }
+            else
+            {
+                authRequest.authNoPriv(userBytes, authPwdBytes, authProto);
+            }
+
+            try
+            {
+                authRequest.decode(data, data.Length);
+            }
+            catch (SnmpAuthenticationException)
+            {
+                Log($"V3 authentication failed from {remoteEp}");
+                return;
+            }
+            catch (SnmpPrivacyException)
+            {
+                Log($"V3 decryption failed from {remoteEp}");
+                return;
+            }
+
+            // Build response PDU (reuse same HandleGet/Set/etc.)
+            var responsePdu = new Pdu();
+            responsePdu.RequestId = authRequest.Pdu.RequestId;
+
+            switch (authRequest.Pdu.Type)
+            {
+                case PduType.Get:
+                    HandleGet(authRequest.Pdu, responsePdu, sourceIp);
+                    break;
+                case PduType.GetNext:
+                    HandleGetNext(authRequest.Pdu, responsePdu, sourceIp);
+                    break;
+                case PduType.GetBulk:
+                    HandleGetBulk(authRequest.Pdu, responsePdu, sourceIp);
+                    break;
+                case PduType.Set:
+                    HandleSet(authRequest.Pdu, responsePdu, sourceIp);
+                    break;
+                default:
+                    Log($"V3 unsupported PDU type: {authRequest.Pdu.Type}");
+                    return;
+            }
+            responsePdu.Type = PduType.Response;
+
+            // Build and send V3 response packet
+            var response = new SnmpV3Packet();
+            if (!string.IsNullOrEmpty(_v3Credentials.PrivPassword))
+            {
+                response.authPriv(userBytes, authPwdBytes, authProto, privPwdBytes, privProto);
+            }
+            else
+            {
+                response.authNoPriv(userBytes, authPwdBytes, authProto);
+            }
+
+            response.USM.EngineId.Set(_engineId);
+            response.USM.EngineBoots = _engineBoots;
+            response.USM.EngineTime = _engineTime;
+
+            // Copy PDU VBs into ScopedPdu
+            response.ScopedPdu.Type = PduType.Response;
+            response.ScopedPdu.RequestId = responsePdu.RequestId;
+            foreach (var vb in responsePdu.VbList)
+                response.ScopedPdu.VbList.Add(vb.Oid, vb.Value);
+
+            var responseBytes = response.encode();
+            _listener?.Send(responseBytes, responseBytes.Length, remoteEp);
+        }
+
+        private void SendV3Discovery(SnmpV3Packet request, IPEndPoint remoteEp)
+        {
+            var response = new SnmpV3Packet();
+            response.USM.EngineId.Set(_engineId);
+            response.USM.EngineBoots = _engineBoots;
+            response.USM.EngineTime = _engineTime;
+            response.ScopedPdu.Type = PduType.Report;
+            response.ScopedPdu.RequestId = request.Pdu.RequestId;
+            // RFC 3414: usmStatsUnknownEngineIDs.0
+            response.ScopedPdu.VbList.Add(
+                new Oid("1.3.6.1.6.3.15.1.1.4.0"), new Integer32(1));
+
+            var respBytes = response.encode();
+            _listener?.Send(respBytes, respBytes.Length, remoteEp);
+            Log($"V3 discovery from {remoteEp}");
         }
 
         private void HandleGet(Pdu request, Pdu response, string sourceIp)

@@ -7,10 +7,9 @@ using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
 using Newtonsoft.Json;
-using SNMPSimMgr.Interfaces;
 using SNMPSimMgr.Models;
 using SNMPSimMgr.Services;
-using SNMPSimMgr.Startup;
+using SNMPSimMgr.ViewModels;
 
 namespace SNMPSimMgr.Hubs
 {
@@ -22,9 +21,11 @@ namespace SNMPSimMgr.Hubs
         // standard pattern when there is no DI container.
         public static SnmpRecorderService Recorder { get; set; }
         public static MibPanelExportService ExportService { get; set; }
-        public static IDeviceStore Store { get; set; }
-        public static ISimulatorService Simulator { get; set; }
+        public static DeviceProfileStore Store { get; set; }
+        public static SimulatorViewModel SimulatorVm { get; set; }
+        public static DeviceListViewModel DeviceListVm { get; set; }
         public static MibStore MibStoreRef { get; set; }
+        public static TrapGeneratorService TrapGen { get; set; }
         public static OidWatchService OidWatch { get; set; }
 
         // ── Schema cache ─────────────────────────────────────────────────
@@ -56,10 +57,7 @@ namespace SNMPSimMgr.Hubs
 
         // ── Server methods (called by Angular) ──────────────────────────
 
-        /// <summary>
-        /// Send an SNMP SET to a device.
-        /// Routes to simulator if one is active, otherwise sends directly to the real hardware.
-        /// </summary>
+        /// <summary>Send an SNMP SET to a running simulator.</summary>
         public async Task<SetResult> SendSet(string deviceId, string oid, string value, string valueType)
         {
             try
@@ -72,8 +70,17 @@ namespace SNMPSimMgr.Hubs
                 if (device == null)
                     return new SetResult { Success = false, Message = $"Device {deviceId} not found" };
 
-                // ResolveTarget: if simulator is active → route to it, otherwise → real hardware
-                var target = SnmpRecorderService.ResolveTarget(device);
+                // Locate the running simulator's local port
+                var sim = SimulatorVm.ActiveSimulators.FirstOrDefault(s => s.DeviceId == deviceId);
+                if (sim == null)
+                    return new SetResult { Success = false, Message = "Simulator not running for this device" };
+
+                var target = new DeviceProfile() {
+                    IpAddress = "127.0.0.1",
+                    Port = sim.Port,
+                    Version = SnmpVersionOption.V2c,
+                    Community = device.Community
+                };
 
                 var success = await Recorder.SetAsync(target, oid, value, valueType);
                 return new SetResult
@@ -88,10 +95,7 @@ namespace SNMPSimMgr.Hubs
             }
         }
 
-        /// <summary>
-        /// Send multiple SNMP SETs in batch.
-        /// Routes to simulator if active, otherwise sends directly to real hardware.
-        /// </summary>
+        /// <summary>Send multiple SNMP SETs in batch to a running simulator.</summary>
         public async Task<BulkSetResult> SendBulkSet(string deviceId, List<BulkSetItem> items)
         {
             var result = new BulkSetResult() { Total = items?.Count ?? 0 };
@@ -111,8 +115,19 @@ namespace SNMPSimMgr.Hubs
                     return result;
                 }
 
-                // ResolveTarget: if simulator is active → route to it, otherwise → real hardware
-                var target = SnmpRecorderService.ResolveTarget(device);
+                var sim = SimulatorVm.ActiveSimulators.FirstOrDefault(s => s.DeviceId == deviceId);
+                if (sim == null)
+                {
+                    result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = "Simulator not running" });
+                    return result;
+                }
+
+                var target = new DeviceProfile() {
+                    IpAddress = "127.0.0.1",
+                    Port = sim.Port,
+                    Version = SnmpVersionOption.V2c,
+                    Community = device.Community
+                };
 
                 foreach (var item in items ?? new List<BulkSetItem>())
                 {
@@ -189,9 +204,6 @@ namespace SNMPSimMgr.Hubs
                     {
                         lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, fileSchema); }
                         System.Diagnostics.Debug.WriteLine($"[SnmpHub] Schema loaded from file: {fileSchema.TotalFields} fields, {fileSchema.Modules.Count} modules");
-                        // Start periodic WALK for SNMP devices (not IDD)
-                        if (!device.IsIddDevice)
-                            _ = Task.Run(() => IntegrationWiring.StartPeriodicWalk(deviceId));
                         return fileSchema;
                     }
                     System.Diagnostics.Debug.WriteLine($"[SnmpHub] Failed to deserialize schema from: {device.SchemaPath}");
@@ -201,10 +213,9 @@ namespace SNMPSimMgr.Hubs
                 if (device.IsIddDevice)
                 {
                     System.Diagnostics.Debug.WriteLine($"[SnmpHub] IDD device: {device.Name}, building IDD schema...");
-                    var iddSchema = IddPanelBuilderService.BuildFromIdd(device.Name, device.IpAddress, device.IddFields);
+                    var iddSchema = IddPanelBuilderService.BuildFromIdd(device.Name, device.IpAddress, device.IddFields!);
                     lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, iddSchema); }
                     System.Diagnostics.Debug.WriteLine($"[SnmpHub] IDD schema built: {iddSchema.TotalFields} fields, {iddSchema.Modules.Count} modules");
-                    // No periodic WALK for IDD devices — they don't speak SNMP
                     return iddSchema;
                 }
 
@@ -220,9 +231,6 @@ namespace SNMPSimMgr.Hubs
                 // Store in cache
                 if (schema != null)
                     lock (SchemaCache) { SchemaCache[deviceId] = (cacheKey, schema); }
-
-                // Auto-start periodic WALK — pushes live values to Angular every N seconds
-                _ = Task.Run(() => IntegrationWiring.StartPeriodicWalk(deviceId));
 
                 return schema;
             }
@@ -251,8 +259,15 @@ namespace SNMPSimMgr.Hubs
                 var device = profiles.FirstOrDefault(d => d.Id == deviceId);
                 if (device == null) { System.Diagnostics.Debug.WriteLine("[SnmpHub] RequestRefresh: device not found"); return result; }
 
-                // ResolveTarget: if simulator is active → route to it, otherwise → real hardware
-                var target = SnmpRecorderService.ResolveTarget(device);
+                var sim = SimulatorVm.ActiveSimulators.FirstOrDefault(s => s.DeviceId == deviceId);
+                if (sim == null) { System.Diagnostics.Debug.WriteLine("[SnmpHub] RequestRefresh: simulator not running"); return result; }
+
+                var target = new DeviceProfile() {
+                    IpAddress = "127.0.0.1",
+                    Port = sim.Port,
+                    Version = SnmpVersionOption.V2c,
+                    Community = device.Community
+                };
 
                 // Use cached schema for OID collection — avoid re-parsing MIBs
                 MibPanelSchema schema = null;
@@ -300,7 +315,7 @@ namespace SNMPSimMgr.Hubs
                 foreach (var col in table.Columns)
                     allOids.Add(col.Oid + "." + row.Index);
 
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: fetching {allOids.Count} OIDs from {target.IpAddress}:{target.Port}");
+                System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestRefresh: fetching {allOids.Count} OIDs from port {sim.Port}");
 
                 // Batch GET in groups of 20 — tolerate per-batch failures
                 for (int i = 0; i < allOids.Count; i += 20)
@@ -327,63 +342,6 @@ namespace SNMPSimMgr.Hubs
             return result;
         }
 
-        /// <summary>
-        /// Walk only specific OID subtrees and return combined results.
-        /// Supports TABLE OIDs (not-accessible) — each OID is walked as a subtree.
-        /// Much faster than full walk for large MIBs like OSA (2484 fields).
-        /// </summary>
-        /// <param name="deviceId">The device ID.</param>
-        /// <param name="subtreeOids">Array of OID prefixes to walk (e.g. ["1.3.6.1.4.1.2544.2.1.6", "1.3.6.1.4.1.2544.2.1.1"]).</param>
-        public async Task<Dictionary<string, string>> RequestSelectiveWalk(string deviceId, string[] subtreeOids)
-        {
-            var result = new Dictionary<string, string>();
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestSelectiveWalk: device={deviceId}, subtrees={subtreeOids?.Length ?? 0}");
-
-                if (Store == null || Recorder == null || subtreeOids == null || subtreeOids.Length == 0)
-                    return result;
-
-                var profiles = await Store.LoadProfilesAsync();
-                var device = profiles.FirstOrDefault(d => d.Id == deviceId);
-                if (device == null) return result;
-
-                var target = SnmpRecorderService.ResolveTarget(device);
-                var records = await Recorder.WalkSubtreesAsync(target, subtreeOids);
-
-                foreach (var r in records)
-                    result[r.Oid] = r.Value;
-
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestSelectiveWalk: got {result.Count} OIDs from {subtreeOids.Length} subtrees");
-
-                // Broadcast results like a normal walk
-                IntegrationWiring.NotifyWalkResults(device.Id, device.Name, result);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] RequestSelectiveWalk ERROR: {ex}");
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Start periodic walk on specific subtrees only (instead of full walk).
-        /// Call with empty array to stop, or with subtrees to switch to selective mode.
-        /// </summary>
-        public async Task StartSelectivePeriodicWalk(string deviceId, string[] subtreeOids, int intervalSeconds = 10)
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] StartSelectivePeriodicWalk: device={deviceId}, subtrees={subtreeOids?.Length ?? 0}, interval={intervalSeconds}s");
-                await IntegrationWiring.StartPeriodicWalk(deviceId, intervalSeconds,
-                    subtreeOids != null && subtreeOids.Length > 0 ? new List<string>(subtreeOids) : null);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SnmpHub] StartSelectivePeriodicWalk ERROR: {ex}");
-            }
-        }
-
         /// <summary>Send an IDD SET (non-SNMP) to WPF for handling.</summary>
         public Task<SetResult> SendIddSet(string deviceId, string fieldId, string value)
         {
@@ -391,11 +349,11 @@ namespace SNMPSimMgr.Hubs
             {
                 System.Diagnostics.Debug.WriteLine($"[SnmpHub] SendIddSet: device={deviceId}, field={fieldId}, value={value}");
 
-                if (Simulator == null)
-                    return Task.FromResult(new SetResult { Success = false, Message = "Simulator service not initialized" });
+                if (SimulatorVm == null)
+                    return Task.FromResult(new SetResult { Success = false, Message = "SimulatorVM not initialized" });
 
                 // Fire event — WPF handles the actual IDD communication
-                Simulator.RaiseIddSet(deviceId, fieldId, value);
+                SimulatorVm.RaiseIddSet(deviceId, fieldId, value);
 
                 return Task.FromResult(new SetResult
                 {
@@ -409,51 +367,6 @@ namespace SNMPSimMgr.Hubs
             }
         }
 
-        /// <summary>Send multiple IDD SETs in batch (non-SNMP) to WPF for handling.</summary>
-        public Task<BulkSetResult> SendIddBulkSet(string deviceId, List<BulkSetItem> items)
-        {
-            var result = new BulkSetResult() { Total = items?.Count ?? 0 };
-            try
-            {
-                if (Simulator == null)
-                {
-                    result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = "Simulator service not initialized" });
-                    return Task.FromResult(result);
-                }
-
-                foreach (var item in items ?? new List<BulkSetItem>())
-                {
-                    try
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[SnmpHub] SendIddBulkSet: device={deviceId}, field={item.Oid}, value={item.Value}");
-                        Simulator.RaiseIddSet(deviceId, item.Oid, item.Value);
-                        result.Results.Add(new BulkSetItemResult
-                        {
-                            Oid = item.Oid,
-                            Success = true,
-                            Message = "IDD SET dispatched"
-                        });
-                        result.Succeeded++;
-                    }
-                    catch (Exception ex)
-                    {
-                        result.Results.Add(new BulkSetItemResult
-                        {
-                            Oid = item.Oid,
-                            Success = false,
-                            Message = ex.Message
-                        });
-                        result.Failed++;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                result.Results.Add(new BulkSetItemResult { Oid = "", Success = false, Message = ex.Message });
-            }
-            return Task.FromResult(result);
-        }
-
         /// <summary>List all known devices with their simulator status.</summary>
         public async Task<List<DeviceInfo>> GetDevices()
         {
@@ -462,7 +375,7 @@ namespace SNMPSimMgr.Hubs
             var profiles = await Store.LoadProfilesAsync();
             return profiles.Select(d =>
             {
-                var sim = Simulator.ActiveSimulators.FirstOrDefault(s => s.DeviceId == d.Id);
+                var sim = SimulatorVm.ActiveSimulators.FirstOrDefault(s => s.DeviceId == d.Id);
                 return new DeviceInfo
                 {
                     Id = d.Id,
@@ -473,6 +386,73 @@ namespace SNMPSimMgr.Hubs
                     SimulatorPort = sim?.Port ?? 0
                 };
             }).ToList();
+        }
+
+        /// <summary>Send a trap to a target manager from the Angular UI.</summary>
+        public async Task<SetResult> SendTrap(string trapOid, string targetIp, int targetPort, List<TrapBinding> bindings)
+        {
+            try
+            {
+                if (TrapGen == null)
+                    return new SetResult { Success = false, Message = "TrapGeneratorService not initialized" };
+
+                var trap = new Models.TrapRecord
+                {
+                    Oid = trapOid,
+                    SourceIp = "127.0.0.1",
+                    Timestamp = DateTime.UtcNow,
+                    VariableBindings = (bindings ?? new List<TrapBinding>())
+                        .Select(b => new Models.SnmpRecord
+                        {
+                            Oid = b.Oid,
+                            Value = b.Value,
+                            ValueType = b.ValueType
+                        }).ToList()
+                };
+
+                await TrapGen.SendTrapAsync(trap, targetIp, targetPort);
+                return new SetResult { Success = true, Message = $"Trap sent to {targetIp}:{targetPort}" };
+            }
+            catch (Exception ex)
+            {
+                return new SetResult { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>Validate MIB files for a device — returns per-file issues.</summary>
+        public async Task<MibValidationResult> ValidateMib(string deviceId)
+        {
+            try
+            {
+                if (Store == null)
+                    return new MibValidationResult { DeviceName = deviceId };
+
+                var profiles = await Store.LoadProfilesAsync();
+                var device = profiles.FirstOrDefault(d => d.Id == deviceId);
+                if (device == null)
+                {
+                    var notFound = new MibValidationResult() { DeviceName = deviceId };
+                    notFound.Files.Add(new MibFileValidation
+                    {
+                        FileName = "(device)",
+                        Issues = { new MibValidationIssue { Severity = "error", Message = $"Device {deviceId} not found" } }
+                    });
+                    return notFound;
+                }
+
+                var filePaths = device.MibFilePaths ?? new List<string>();
+                return MibParserService.ValidateMultiple(filePaths, device.Name);
+            }
+            catch (Exception ex)
+            {
+                var errResult = new MibValidationResult() { DeviceName = deviceId };
+                errResult.Files.Add(new MibFileValidation
+                {
+                    FileName = "(error)",
+                    Issues = { new MibValidationIssue { Severity = "error", Message = ex.Message, Context = ex.GetType().Name } }
+                });
+                return errResult;
+            }
         }
 
         // ── Connection lifecycle ────────────────────────────────────────
@@ -503,6 +483,23 @@ namespace SNMPSimMgr.Hubs
                 value,
                 sourceIp,
                 timestamp = DateTime.UtcNow
+            });
+        }
+
+        public static void BroadcastTrap(TrapRecord trap)
+        {
+            var context = GlobalHost.ConnectionManager.GetHubContext<SnmpHub>();
+            context.Clients.All.onTrapReceived(new
+            {
+                oid = trap.Oid,
+                sourceIp = trap.SourceIp,
+                timestamp = trap.Timestamp,
+                variableBindings = trap.VariableBindings.Select(v => new
+                {
+                    oid = v.Oid,
+                    value = v.Value,
+                    valueType = v.ValueType
+                })
             });
         }
 
@@ -624,5 +621,88 @@ namespace SNMPSimMgr.Hubs
 
         [JsonProperty("message")]
         public string Message { get; set; } = string.Empty;
+    }
+
+    // ── Trap Generator DTO ───────────────────────────────────────
+
+    public class TrapBinding
+    {
+        [JsonProperty("oid")]
+        public string Oid { get; set; } = string.Empty;
+
+        [JsonProperty("value")]
+        public string Value { get; set; } = string.Empty;
+
+        [JsonProperty("valueType")]
+        public string ValueType { get; set; } = "OctetString";
+    }
+
+    // ── MIB Validation DTOs ──────────────────────────────────────
+
+    public class MibValidationResult
+    {
+        [JsonProperty("deviceName")]
+        public string DeviceName { get; set; } = string.Empty;
+
+        [JsonProperty("files")]
+        public List<MibFileValidation>  Files { get; set; } = new List<MibFileValidation>();
+
+        [JsonProperty("dependencies")]
+        public List<MibFileDependencies>  Dependencies { get; set; } = new List<MibFileDependencies>();
+    }
+
+    public class MibFileValidation
+    {
+        [JsonProperty("fileName")]
+        public string FileName { get; set; } = string.Empty;
+
+        [JsonProperty("definitionCount")]
+        public int DefinitionCount { get; set; }
+
+        [JsonProperty("issueCount")]
+        public int IssueCount { get; set; }
+
+        [JsonProperty("issues")]
+        public List<MibValidationIssue>  Issues { get; set; } = new List<MibValidationIssue>();
+    }
+
+    public class MibValidationIssue
+    {
+        [JsonProperty("severity")]
+        public string Severity { get; set; } = string.Empty;
+
+        [JsonProperty("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [JsonProperty("context")]
+        public string Context { get; set; } = string.Empty;
+    }
+
+    // ── MIB Dependency DTOs ─────────────────────────────────────
+
+    public class MibFileDependencies
+    {
+        [JsonProperty("fileName")]
+        public string FileName { get; set; } = string.Empty;
+
+        [JsonProperty("moduleName")]
+        public string ModuleName { get; set; } = string.Empty;
+
+        [JsonProperty("imports")]
+        public List<MibDependency>  Imports { get; set; } = new List<MibDependency>();
+    }
+
+    public class MibDependency
+    {
+        [JsonProperty("moduleName")]
+        public string ModuleName { get; set; } = string.Empty;
+
+        /// <summary>"loaded" | "standard" | "missing"</summary>
+        [JsonProperty("status")]
+        public string Status { get; set; } = string.Empty;
+
+        /// <summary>File name that provides this module (when status == "loaded")</summary>
+        [JsonProperty("providedBy")]
+        public string ProvidedBy { get; set; } = string.Empty;
     }
 }
