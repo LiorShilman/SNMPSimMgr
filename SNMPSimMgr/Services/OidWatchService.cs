@@ -118,6 +118,78 @@ namespace SNMPSimMgr.Services
             _nameWatches.Clear();
         }
 
+        // ── Value Query ──
+
+        /// <summary>Get current value by exact OID. Returns null if not found.</summary>
+        public string GetValue(string oid) =>
+            _lastValues.TryGetValue(oid, out var val) ? val : null;
+
+        /// <summary>Get current value by field name. Returns null if not found.</summary>
+        public string GetValueByName(string fieldName)
+        {
+            var oid = ResolveNameToOid(fieldName);
+            if (oid == null) return null;
+            // Try OID.0 (scalar instance) first, then bare OID
+            return GetValue(oid + ".0") ?? GetValue(oid);
+        }
+
+        /// <summary>
+        /// Get all rows of a table by its OID prefix.
+        /// Returns Dictionary&lt;rowIndex, Dictionary&lt;columnOid, value&gt;&gt;.
+        /// Example: GetTable("1.3.6.1.2.1.2.2.1") returns ifTable rows.
+        /// </summary>
+        public Dictionary<string, Dictionary<string, string>> GetTable(string tablePrefix)
+        {
+            var rows = new Dictionary<string, Dictionary<string, string>>();
+            var prefix = tablePrefix.EndsWith(".") ? tablePrefix : tablePrefix + ".";
+
+            foreach (var kvp in _lastValues)
+            {
+                if (!kvp.Key.StartsWith(prefix)) continue;
+
+                // OID format: prefix.columnIndex.rowIndex[.rowIndex...]
+                var suffix = kvp.Key.Substring(prefix.Length);
+                var dotPos = suffix.IndexOf('.');
+                if (dotPos < 0) continue; // no row index
+
+                var columnIndex = suffix.Substring(0, dotPos);
+                var rowIndex = suffix.Substring(dotPos + 1);
+                var columnOid = tablePrefix + "." + columnIndex;
+
+                if (!rows.TryGetValue(rowIndex, out var row))
+                {
+                    row = new Dictionary<string, string>();
+                    rows[rowIndex] = row;
+                }
+
+                // Store by column OID and also by column name if known
+                row[columnOid] = kvp.Value;
+                var colName = ResolveOidToName(columnOid);
+                if (colName != null)
+                    row[colName] = kvp.Value;
+            }
+            return rows;
+        }
+
+        /// <summary>
+        /// Get all rows of a table by column name (resolves to OID prefix automatically).
+        /// Pass any column name from the table (e.g., "ifDescr") to identify the table.
+        /// </summary>
+        public Dictionary<string, Dictionary<string, string>> GetTableByName(string columnName)
+        {
+            var oid = ResolveNameToOid(columnName);
+            if (oid == null) return new Dictionary<string, Dictionary<string, string>>();
+            // Column OID is "tableEntry.colIndex" — go up one level to get entry OID
+            var lastDot = oid.LastIndexOf('.');
+            if (lastDot < 0) return new Dictionary<string, Dictionary<string, string>>();
+            var entryOid = oid.Substring(0, lastDot);
+            return GetTable(entryOid);
+        }
+
+        /// <summary>Get a snapshot of all current OID→Value pairs.</summary>
+        public Dictionary<string, string> GetAllValues() =>
+            new Dictionary<string, string>(_lastValues);
+
         // ── Notification ──
 
         /// <summary>
