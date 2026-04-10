@@ -447,8 +447,22 @@ namespace SNMPSimMgr.ViewModels
                 while (!_sessionCts.Token.IsCancellationRequested)
                 {
                     var walkSw = System.Diagnostics.Stopwatch.StartNew();
-                    var results = await _recorder.WalkDeviceAsync(device, _sessionCts.Token);
+
+                    // Use safe walk — always returns results even if walk got stuck/timed out
+                    var walkResult = await _recorder.WalkDeviceSafeAsync(device, _sessionCts.Token);
                     walkSw.Stop();
+
+                    var results = walkResult.Records;
+
+                    // Skip empty frames (total failure) but always continue to next frame
+                    if (results.Count == 0)
+                    {
+                        LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] Frame walk returned 0 OIDs ({walkResult.EndReason ?? "unknown"}), skipping frame");
+                        var waitAfterEmpty = TimeSpan.FromSeconds(SessionInterval);
+                        if (waitAfterEmpty > TimeSpan.Zero)
+                            await Task.Delay(waitAfterEmpty, _sessionCts.Token);
+                        continue;
+                    }
 
                     var frame = new RecordedFrame() {
                         ElapsedMs = sw.ElapsedMilliseconds,
@@ -457,6 +471,9 @@ namespace SNMPSimMgr.ViewModels
                     _currentSession.Frames.Add(frame);
                     SessionFrameCount = _currentSession.Frames.Count;
                     OidCount = results.Count;
+
+                    if (!walkResult.WalkCompleted)
+                        LogEntries.Add($"[{DateTime.Now:HH:mm:ss}] ⚠ Walk ended early: {walkResult.EndReason} — saving {results.Count} partial OIDs as frame #{SessionFrameCount}");
 
                     // First frame + no walk data → auto-save as walk baseline
                     if (SessionFrameCount == 1)
@@ -487,7 +504,7 @@ namespace SNMPSimMgr.ViewModels
                         GetResults.Add(new QueryResultItem
                         {
                             Time = DateTime.Now.ToString("HH:mm:ss"),
-                            Operation = $"REC#{SessionFrameCount}",
+                            Operation = $"REC#{SessionFrameCount}{(walkResult.WalkCompleted ? "" : " (partial)")}",
                             Oid = r.Oid,
                             Name = ResolveOidName(r.Oid),
                             ValueType = r.ValueType,

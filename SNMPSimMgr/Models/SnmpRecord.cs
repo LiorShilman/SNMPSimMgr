@@ -42,4 +42,16 @@ namespace SNMPSimMgr.Models
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum SnmpOperation { Get, GetNext, GetBulk, Set, Walk }
+
+    /// <summary>
+    /// Result of a safe walk — always contains collected records even if the walk ended early.
+    /// </summary>
+    public class WalkResult
+    {
+        public List<SnmpRecord> Records { get; set; } = new List<SnmpRecord>();
+        /// <summary>True if the walk reached endOfMibView normally.</summary>
+        public bool WalkCompleted { get; set; }
+        /// <summary>Non-null if the walk ended early (timeout, stuck, error).</summary>
+        public string EndReason { get; set; }
+    }
 }

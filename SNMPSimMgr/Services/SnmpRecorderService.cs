@@ -20,6 +20,8 @@ namespace SNMPSimMgr.Services
         private const int WalkTimeout = 2000;
         private const int WalkRetries = 1;
         private const int MaxConsecutiveSkips = 10;
+        private const int StaleWalkTimeoutMs = 30000; // 30s without new OID → walk is stuck
+        private const int MaxWalkDurationMs = 300000; // 5 min hard cap per walk
 
         /// <summary>
         /// Active simulator endpoints: device ID → (listenIp, port).
@@ -110,31 +112,76 @@ namespace SNMPSimMgr.Services
             return allResults;
         }
 
-        private List<SnmpRecord> WalkDevice(DeviceProfile device, string rootOid, CancellationToken ct)
+        /// <summary>
+        /// Perform a walk that always returns collected results — even on timeout, stuck, or cancellation.
+        /// WalkCompleted is false if the walk ended prematurely.
+        /// </summary>
+        public async Task<WalkResult> WalkDeviceSafeAsync(
+            DeviceProfile device,
+            CancellationToken ct = default)
+        {
+            return await Task.Run(() => WalkDeviceSafe(device, "1.3.6.1", ct), ct).ConfigureAwait(false);
+        }
+
+        private WalkResult WalkDeviceSafe(DeviceProfile device, string rootOid, CancellationToken ct)
         {
             var results = new List<SnmpRecord>();
+            bool completed = false;
+            string endReason = null;
+
             Log($"Starting SNMP Walk on {device.Name} ({device.IpAddress}) from {rootOid}...");
 
             try
             {
-                if (device.Version == SnmpVersionOption.V2c)
-                    WalkV2c(device, rootOid, results, ct);
-                else
-                    WalkV3(device, rootOid, results, ct);
+                // Hard cap: create a linked CTS that fires after MaxWalkDurationMs
+                using (var walkTimeCts = new CancellationTokenSource(MaxWalkDurationMs))
+                using (var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, walkTimeCts.Token))
+                {
+                    if (device.Version == SnmpVersionOption.V2c)
+                        WalkV2c(device, rootOid, results, linked.Token);
+                    else
+                        WalkV3(device, rootOid, results, linked.Token);
+                }
+
+                completed = true;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // Walk timeout (hard cap) — not user cancellation
+                endReason = $"Walk timed out after {MaxWalkDurationMs / 1000}s";
+                Log($"  {endReason} — saving {results.Count} OIDs collected so far");
             }
             catch (OperationCanceledException)
             {
-                Log("Walk cancelled.");
-                throw;
+                // User cancellation — still return partial results
+                endReason = "Walk cancelled by user";
+                Log($"  {endReason} — saving {results.Count} OIDs collected so far");
             }
             catch (Exception ex)
             {
-                Log($"Walk error: {ex.Message}");
-                throw;
+                endReason = $"Walk error: {ex.Message}";
+                Log($"  {endReason} — saving {results.Count} OIDs collected so far");
             }
 
-            Log($"Walk complete. Captured {results.Count} OIDs.");
-            return results;
+            Log(completed
+                ? $"Walk complete. Captured {results.Count} OIDs."
+                : $"Walk ended early ({endReason}). Captured {results.Count} OIDs.");
+
+            return new WalkResult
+            {
+                Records = results,
+                WalkCompleted = completed,
+                EndReason = endReason
+            };
+        }
+
+        private List<SnmpRecord> WalkDevice(DeviceProfile device, string rootOid, CancellationToken ct)
+        {
+            // Legacy method — delegates to safe walk and throws on user cancellation
+            var result = WalkDeviceSafe(device, rootOid, ct);
+            if (!result.WalkCompleted && ct.IsCancellationRequested)
+                throw new OperationCanceledException();
+            return result.Records;
         }
 
         private void WalkV2c(DeviceProfile device, string rootOidStr, List<SnmpRecord> results, CancellationToken ct)
@@ -150,12 +197,20 @@ namespace SNMPSimMgr.Services
             int count = 0;
             int consecutiveSkips = 0;
             int sameOidCount = 0;
+            var staleSw = System.Diagnostics.Stopwatch.StartNew(); // time since last NEW oid
 
             try
             {
                 while (true)
                 {
                     ct.ThrowIfCancellationRequested();
+
+                    // Stale walk detection — no new OID for too long
+                    if (staleSw.ElapsedMilliseconds > StaleWalkTimeoutMs)
+                    {
+                        Log($"  No new OID for {StaleWalkTimeoutMs / 1000}s — walk appears stalled, ending");
+                        break;
+                    }
 
                     var pdu = new Pdu(PduType.GetNext);
                     pdu.VbList.Add(lastOid);
@@ -216,6 +271,7 @@ namespace SNMPSimMgr.Services
                         continue;
                     }
                     sameOidCount = 0;
+                    staleSw.Restart(); // got a new OID — reset stale timer
 
                     results.Add(VbToRecord(vb));
 
@@ -223,7 +279,7 @@ namespace SNMPSimMgr.Services
                     if (count % 100 == 0)
                     {
                         Log($"  ...captured {count} OIDs (current: {vb.Oid})");
-                        ProgressChanged.Invoke(count);
+                        ProgressChanged?.Invoke(count);
                     }
 
                     lastOid = vb.Oid;
@@ -247,12 +303,20 @@ namespace SNMPSimMgr.Services
             int count = 0;
             int consecutiveSkips = 0;
             int sameOidCount = 0;
+            var staleSw = System.Diagnostics.Stopwatch.StartNew(); // time since last NEW oid
 
             try
             {
                 while (true)
                 {
                     ct.ThrowIfCancellationRequested();
+
+                    // Stale walk detection — no new OID for too long
+                    if (staleSw.ElapsedMilliseconds > StaleWalkTimeoutMs)
+                    {
+                        Log($"  No new OID for {StaleWalkTimeoutMs / 1000}s — walk appears stalled, ending");
+                        break;
+                    }
 
                     var pdu = new ScopedPdu(PduType.GetNext);
                     pdu.VbList.Add(lastOid);
@@ -312,6 +376,7 @@ namespace SNMPSimMgr.Services
                         continue;
                     }
                     sameOidCount = 0;
+                    staleSw.Restart(); // got a new OID — reset stale timer
 
                     results.Add(VbToRecord(vb));
 
@@ -319,7 +384,7 @@ namespace SNMPSimMgr.Services
                     if (count % 100 == 0)
                     {
                         Log($"  ...captured {count} OIDs (current: {vb.Oid})");
-                        ProgressChanged.Invoke(count);
+                        ProgressChanged?.Invoke(count);
                     }
 
                     lastOid = vb.Oid;
